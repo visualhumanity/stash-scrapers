@@ -16,6 +16,9 @@ fi
 rm -rf "$outdir"
 mkdir -p "$outdir"
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+cd "$script_dir"
+
 buildPlugin() 
 {
     f=$1
@@ -64,9 +67,11 @@ buildPlugin()
     echo "" >> "$outdir"/index.yml
 }
 
-find ./plugins -mindepth 1 -name *.yml | while read file; do
-    buildPlugin "$file"
-done
+if [ -d "./plugins" ]; then
+    find ./plugins -mindepth 1 -name *.yml | while read file; do
+        buildPlugin "$file"
+    done
+fi
 
 buildScraper() 
 {
@@ -129,9 +134,11 @@ buildScraper()
 }
 
 # find all yml files in ./scrapers - these are packages individually
-for f in ./scrapers/*.yml; do 
+shopt -s nullglob
+for f in ./scrapers/*.yml; do
     buildScraper "$f"
 done
+shopt -u nullglob
 
 find ./scrapers/ -mindepth 2 -name *.yml -print0 | while read -d $'\0' f; do
     buildScraper "$f"
