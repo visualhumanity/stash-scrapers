@@ -12,7 +12,7 @@ _This assumes you already know how to create scrapers for Stash. If you don't, f
 
 Now add your scrapers to [scrapers](/scrapers) directory and they will be automatically published to the source index.
 
-Source index URL: [`https://<your-username>.github.io/<repository-name>/main/index.yml`](https://<your-username>.github.io/<repository-name>/main/index.yml)
+Source index URL: [`https://visualhumanity.github.io/stash-scrapers/main/index.yml`](https://visualhumanity.github.io/stash-scrapers/main/index.yml)
 
 ## Share your scrapers
 
