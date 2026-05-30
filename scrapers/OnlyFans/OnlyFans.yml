@@ -1,0 +1,21 @@
+name: OnlyFans
+# requires: py_common
+
+studioByURL:
+  - url:
+      - onlyfans.com/
+    action: script
+    script:
+      - python
+      - OnlyFans.py
+      - studio-by-url
+
+performerByURL:
+  - url:
+      - onlyfans.com/
+    action: script
+    script:
+      - python
+      - OnlyFans.py
+      - performer-by-url
+# Last Updated 2026-05-30
