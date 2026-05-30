@@ -1,0 +1,20 @@
+name: Twitter
+# requires: py_common
+
+performerByURL:
+  - url:
+      - twitter.com/
+      - x.com/
+    action: script
+    script:
+      - python
+      - Twitter.py
+      - performer-by-url
+
+performerByName:
+  action: script
+  script:
+    - python
+    - Twitter.py
+    - performer-by-name
+# Last Updated 2026-05-30
