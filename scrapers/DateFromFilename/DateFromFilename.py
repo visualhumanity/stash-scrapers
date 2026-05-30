@@ -4,7 +4,15 @@ import re
 import sys
 from datetime import datetime
 
-from py_common import log
+# py_common is installed at scrapers/community/py_common/; our scraper is at
+# scrapers/<vendor>/DateFromFilename/ — go up two levels then into community/
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "community"))
+
+try:
+    from py_common import log
+except ModuleNotFoundError:
+    print("You need to install py_common from the community scraper package.", file=sys.stderr)
+    sys.exit(1)
 
 YEAR_MIN = 1900
 YEAR_MAX = 2100

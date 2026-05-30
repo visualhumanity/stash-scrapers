@@ -1,10 +1,17 @@
 import json
+import os
 import sys
 import subprocess as sp
 from datetime import datetime
 from urllib.parse import urlparse
 
-from py_common import log
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "community"))
+
+try:
+    from py_common import log
+except ModuleNotFoundError:
+    print("You need to install py_common from the community scraper package.", file=sys.stderr)
+    sys.exit(1)
 
 
 def parse_url(comment):
