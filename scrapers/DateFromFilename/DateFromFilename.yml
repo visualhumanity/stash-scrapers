@@ -1,0 +1,9 @@
+name: Extract Date from Filename
+# requires: py_common
+
+sceneByFragment:
+  action: script
+  script:
+    - python
+    - DateFromFilename.py
+# Last Updated 2026-05-30
