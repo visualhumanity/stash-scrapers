@@ -104,13 +104,13 @@ def performer_from_url(url):
         if height_raw:
             m = re.search(r"(\d+)\s*cm", height_raw, re.I)
             if m:
-                result["height"] = int(m.group(1))
+                result["height"] = m.group(1)
 
         weight_raw = get_stat(stats, "Weight:")
         if weight_raw:
             m = re.search(r"(\d+)\s*kg", weight_raw, re.I)
             if m:
-                result["weight"] = int(m.group(1))
+                result["weight"] = m.group(1)
 
         skin_raw = get_stat(stats, "Skin:")
         if skin_raw:
