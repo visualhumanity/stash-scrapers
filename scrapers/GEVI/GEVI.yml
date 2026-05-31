@@ -1,0 +1,12 @@
+name: Gay Erotic Video Index (GEVI)
+# requires: py_common
+
+performerByURL:
+  - action: script
+    url:
+      - gayeroticvideoindex.com/performer/
+    script:
+      - python
+      - GEVI.py
+      - performer-by-url
+# Last Updated 2026-05-31
