@@ -9,4 +9,13 @@ performerByURL:
       - python
       - GEVI.py
       - performer-by-url
+
+groupByURL:
+  - action: script
+    url:
+      - gayeroticvideoindex.com/video/
+    script:
+      - python
+      - GEVI.py
+      - group-by-url
 # Last Updated 2026-05-31
