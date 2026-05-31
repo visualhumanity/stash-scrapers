@@ -11,39 +11,39 @@ import requests
 from bs4 import BeautifulSoup
 
 HAIR_MAP = {
-    "blonde": "BLONDE",
-    "brown": "BRUNETTE",
-    "brunette": "BRUNETTE",
-    "black": "BLACK",
-    "red": "RED",
-    "auburn": "AUBURN",
-    "grey": "GREY",
-    "gray": "GREY",
-    "bald": "BALD",
+    "blonde": "Blonde",
+    "brown": "Brunette",
+    "brunette": "Brunette",
+    "black": "Black",
+    "red": "Red",
+    "auburn": "Auburn",
+    "grey": "Grey",
+    "gray": "Grey",
+    "bald": "Bald",
 }
 
 EYE_MAP = {
-    "blue": "BLUE",
-    "brown": "BROWN",
-    "green": "GREEN",
-    "grey": "GREY",
-    "gray": "GREY",
-    "hazel": "HAZEL",
-    "red": "RED",
+    "blue": "Blue",
+    "brown": "Brown",
+    "green": "Green",
+    "grey": "Grey",
+    "gray": "Grey",
+    "hazel": "Hazel",
+    "red": "Red",
 }
 
 ETHNICITY_MAP = {
-    "white": "CAUCASIAN",
-    "caucasian": "CAUCASIAN",
-    "black": "BLACK",
-    "african american": "BLACK",
-    "asian": "ASIAN",
-    "indian": "INDIAN",
-    "latin": "LATIN",
-    "latino": "LATIN",
-    "hispanic": "LATIN",
-    "middle eastern": "MIDDLE_EASTERN",
-    "mixed": "MIXED",
+    "white": "Caucasian",
+    "caucasian": "Caucasian",
+    "black": "Black",
+    "african american": "Black",
+    "asian": "Asian",
+    "indian": "Indian",
+    "latin": "Latin",
+    "latino": "Latin",
+    "hispanic": "Latin",
+    "middle eastern": "Middle Eastern",
+    "mixed": "Mixed",
 }
 
 CIRCUMCISED_MAP = {
