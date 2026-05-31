@@ -120,7 +120,7 @@ def performer_from_url(url):
         if dick_raw:
             m = re.search(r"([\d.]+)\s*cm", dick_raw, re.I)
             if m:
-                result["penis_length"] = float(m.group(1))
+                result["penis_length"] = m.group(1)
 
         foreskin_raw = get_stat(stats, "Foreskin:")
         if foreskin_raw:
