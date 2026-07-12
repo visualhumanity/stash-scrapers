@@ -129,6 +129,22 @@ class HtmlToMarkdownTests(unittest.TestCase):
         once = html_to_markdown('<p>Hi <a href="u">l</a></p>')
         self.assertFalse(looks_like_html(once))
 
+    def test_nested_anchors_preserve_all_text_and_hrefs(self):
+        # Nested <a> is invalid HTML; ensure no text or href is silently dropped.
+        result = html_to_markdown('<a href="u1">before<a href="u2">inner</a></a>')
+        self.assertIn("before", result)
+        self.assertIn("(u1)", result)
+        self.assertIn("(u2)", result)
+
+    def test_stray_closing_anchor_is_ignored(self):
+        self.assertEqual(html_to_markdown("plain</a> text"), "plain text")
+
+    def test_unclosed_anchor_keeps_text(self):
+        self.assertEqual(html_to_markdown('<a href="u">text'), "text")
+
+    def test_blockquote_prefix(self):
+        self.assertEqual(html_to_markdown("<blockquote>quoted</blockquote>"), "> quoted")
+
 
 if __name__ == "__main__":
     unittest.main()
