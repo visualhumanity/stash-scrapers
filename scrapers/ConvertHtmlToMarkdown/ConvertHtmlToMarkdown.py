@@ -58,8 +58,7 @@ class _MarkdownConverter(HTMLParser):
         super().__init__(convert_charrefs=True)
         self._parts: list[str] = []
         self._list_stack: list[dict] = []
-        self._link_href = None
-        self._link_start = None
+        self._link_stack: list[tuple] = []  # (href, start_index) per open <a>
 
     def _emit(self, text: str) -> None:
         self._parts.append(text)
@@ -76,8 +75,7 @@ class _MarkdownConverter(HTMLParser):
         if tag == "br":
             self._emit("\n")
         elif tag == "a":
-            self._link_href = dict(attrs).get("href")
-            self._link_start = len(self._parts)
+            self._link_stack.append((dict(attrs).get("href"), len(self._parts)))
         elif tag in _INLINE_WRAP:
             self._emit(_INLINE_WRAP[tag])
         elif tag in _HEADINGS:
@@ -103,14 +101,11 @@ class _MarkdownConverter(HTMLParser):
     def handle_endtag(self, tag):
         tag = tag.lower()
         if tag == "a":
-            if self._link_start is not None:
-                text = "".join(self._parts[self._link_start:]).strip()
-                del self._parts[self._link_start:]
-            else:
-                text = ""
-            href = self._link_href
-            self._link_href = None
-            self._link_start = None
+            if not self._link_stack:
+                return
+            href, start = self._link_stack.pop()
+            text = "".join(self._parts[start:]).strip()
+            del self._parts[start:]
             if href:
                 self._emit(f"[{text or href}]({href})")
             elif text:
