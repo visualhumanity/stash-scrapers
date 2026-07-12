@@ -1,0 +1,10 @@
+name: Convert HTML to Markdown
+# requires: py_common
+# ignore: test_ConvertHtmlToMarkdown.py
+
+sceneByFragment:
+  action: script
+  script:
+    - python
+    - ConvertHtmlToMarkdown.py
+# Last Updated 2026-07-12
