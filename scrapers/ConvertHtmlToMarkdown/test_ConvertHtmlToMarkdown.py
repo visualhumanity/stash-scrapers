@@ -46,6 +46,15 @@ class HarnessTests(unittest.TestCase):
         proc = run_scraper({"id": "1", "details": "A plain description."})
         self.assertEqual(proc.stdout.strip(), "{}")
 
+    def test_html_details_converted_end_to_end(self):
+        proc = run_scraper(
+            {"id": "42", "details": '<p>See <a href="https://x.com">here</a>.</p>'}
+        )
+        self.assertEqual(
+            json.loads(proc.stdout),
+            {"details": "See [here](https://x.com)."},
+        )
+
 
 class HtmlToMarkdownTests(unittest.TestCase):
     def test_plain_text_passthrough(self):

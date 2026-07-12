@@ -10,6 +10,7 @@ Python script scrapers for [Stash](https://github.com/stashapp/stash), published
 |-----------|------|-------------|
 | `FileMetadata` | File Metadata (ffprobe) | Reads title, URL, description, date, and performer from a video file's embedded metadata tags via ffprobe |
 | `DateFromFilename` | Extract Date from Filename | Parses a scene date from the video filename, supporting a variety of formats and separators; skips and logs ambiguous cases |
+| `ConvertHtmlToMarkdown` | Convert HTML to Markdown | Converts an HTML scene description (e.g. one extracted from embedded video metadata) into Markdown, turning links into `[text](url)` hyperlinks; leaves plain-text descriptions untouched |
 
 ## Directory structure
 
