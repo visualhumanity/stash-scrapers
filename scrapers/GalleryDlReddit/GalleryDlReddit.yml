@@ -1,0 +1,17 @@
+name: Reddit (Gallery-DL)
+# requires: py_common
+
+sceneByFragment:
+  action: script
+  script:
+    - python
+    - GalleryDlReddit.py
+    - scene
+
+imageByFragment:
+  action: script
+  script:
+    - python
+    - GalleryDlReddit.py
+    - image
+# Last Updated 2026-07-27
