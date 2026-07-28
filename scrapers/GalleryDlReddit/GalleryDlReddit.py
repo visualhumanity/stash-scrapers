@@ -14,19 +14,23 @@ except ModuleNotFoundError:
     print("You need to install py_common from the community scraper package.", file=sys.stderr)
     sys.exit(1)
 
-# gallery-dl Reddit filenames: "<title> - <YYYY-MM-DD> - <performer> - <index>.<ext>"
+# gallery-dl Reddit filenames: "<title> - <YYYY-MM-DD> - <performer>[ - <index>].<ext>"
+# The trailing " - <index>" is only present on multi-file posts (galleries); single-file
+# posts (e.g. a lone video) omit it, so it must be optional.
 FILENAME_RE = re.compile(
-    r'^(?P<title>.*) - (?P<date>\d{4}-\d{2}-\d{2}) - (?P<performer>.*) - (?P<index>\d+)$'
+    r'^(?P<title>.*) - (?P<date>\d{4}-\d{2}-\d{2}) - (?P<performer>.*?)(?: - (?P<index>\d+))?$'
 )
 
 
 def parse_filename(stem: str):
     """
-    Extract (title, date, performer) from a "<title> - <date> - <performer> - <index>" stem.
+    Extract (title, date, performer) from a "<title> - <date> - <performer>[ - <index>]" stem.
 
-    Greedy '.*' groups for title/performer let the regex find the *last* valid
-    " - YYYY-MM-DD - " / " - <index>$" boundaries via backtracking, which is correct
-    even if a post title itself contains a literal " - ".
+    Greedy '.*' for title lets the regex find the *last* valid " - YYYY-MM-DD - " boundary
+    via backtracking, correct even if a post title itself contains a literal " - ". Performer
+    is non-greedy so it only yields characters to the optional trailing index group when that
+    group can actually match (i.e. there's a literal " - <digits>" at the very end) — a
+    performer name that itself ends in digits (e.g. "u_North_Profit_2936") is left intact.
 
     Returns None if the pattern doesn't match or the date isn't a valid calendar date.
     """
