@@ -52,7 +52,7 @@ sceneByFragment:               # action exposed in the Stash Identify task
 
 ## Build and deployment
 
-`build_site.sh` packages each scraper into a zip and writes `index.yml`. It is run automatically by the GitHub Actions workflow (`.github/workflows/deploy.yml`) on **every push** to any branch and deploys the result to GitHub Pages under a path matching the branch name (e.g. `main/index.yml`).
+`build_site.sh` packages each scraper into a zip and writes `index.yml`. It is run automatically by the GitHub Actions workflow (`.github/workflows/deploy.yml`) on every pull request (opened and on each push to it) and on every push to `main`. Pull request runs only build, to check that the merged result builds; the `deploy` job is skipped. Only a push to `main` deploys to GitHub Pages (`main/index.yml`).
 
 Version shown in the index: the git short hash of the last commit that touched the scraper directory.
 
