@@ -11,6 +11,7 @@ Python script scrapers for [Stash](https://github.com/stashapp/stash), published
 | `FileMetadata` | File Metadata (ffprobe) | Reads title, URL, description, date, and performer from a video file's embedded metadata tags via ffprobe |
 | `DateFromFilename` | Extract Date from Filename | Parses a scene date from the video filename, supporting a variety of formats and separators; skips and logs ambiguous cases |
 | `ConvertHtmlToMarkdown` | Convert HTML to Markdown | Converts an HTML scene description (e.g. one extracted from embedded video metadata) into Markdown, turning links into `[text](url)` hyperlinks; leaves plain-text descriptions untouched |
+| `GalleryDlTwitter` | Gallery-DL - Twitter | Reads the gallery-dl `<media file>.json` sidecar next to a Twitter scene or image and fills title (first caption line, ` [i]` for multi-media tweets), details, date (container `TZ`), code (tweet ID), URL, performer and studio (poster handle) and tags (hashtags); skips avatar/background sidecars. Images need an API key in `py_common/config.ini`; see its README |
 
 ## Directory structure
 
