@@ -61,3 +61,17 @@ Version shown in the index: the git short hash of the last commit that touched t
 1. Create `scrapers/<Name>/` with a `<Name>.yml` and `<Name>.py`.
 2. Follow the YAML and script conventions above.
 3. Commit and push — CI builds and publishes automatically.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues (`gh` CLI). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five-label vocabulary. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: root `CONTEXT.md` + `docs/adr/`. See `docs/agents/domain.md`.
