@@ -12,6 +12,7 @@ Python script scrapers for [Stash](https://github.com/stashapp/stash), published
 | `DateFromFilename` | Extract Date from Filename | Parses a scene date from the video filename, supporting a variety of formats and separators; skips and logs ambiguous cases |
 | `ConvertHtmlToMarkdown` | Convert HTML to Markdown | Converts an HTML scene description (e.g. one extracted from embedded video metadata) into Markdown, turning links into `[text](url)` hyperlinks; leaves plain-text descriptions untouched |
 | `GalleryDlTwitter` | Gallery-DL - Twitter | Reads the gallery-dl `<media file>.json` sidecar next to a Twitter scene or image and fills title (first caption line, ` [i]` for multi-media tweets), details, date (container `TZ`), code (tweet ID), URL, performer and studio (poster handle) and tags (hashtags); skips avatar/background sidecars. Images need an API key in `py_common/config.ini`; see its README |
+| `OFScraperUserData` | OF-Scraper - User Data | Reads OF-Scraper's per-account `user_data.db` (read-only) to fill date (container `TZ`), studio and performer (model folder), mentioned accounts as extra performers, URL (posts only) and raw-HTML description; scene by fragment only |
 
 ## Directory structure
 
@@ -61,3 +62,17 @@ Version shown in the index: the git short hash of the last commit that touched t
 1. Create `scrapers/<Name>/` with a `<Name>.yml` and `<Name>.py`.
 2. Follow the YAML and script conventions above.
 3. Commit and push — CI builds and publishes automatically.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues (`gh` CLI). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five-label vocabulary. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: root `CONTEXT.md` + `docs/adr/`. See `docs/agents/domain.md`.
