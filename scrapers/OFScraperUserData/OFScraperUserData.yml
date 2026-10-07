@@ -1,0 +1,10 @@
+name: OF-Scraper - User Data
+# requires: py_common
+# ignore: test_OFScraperUserData.py README.md
+
+sceneByFragment:
+  action: script
+  script:
+    - python
+    - OFScraperUserData.py
+# Last Updated 2026-10-07
