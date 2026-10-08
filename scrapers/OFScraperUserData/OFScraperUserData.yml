@@ -1,5 +1,5 @@
 name: OF-Scraper - User Data
-# requires: py_common
+# requires: py_common, ConvertHtmlToMarkdown
 # ignore: test_OFScraperUserData.py README.md
 
 sceneByFragment:
@@ -7,4 +7,4 @@ sceneByFragment:
   script:
     - python
     - OFScraperUserData.py
-# Last Updated 2026-10-07
+# Last Updated 2026-10-08
