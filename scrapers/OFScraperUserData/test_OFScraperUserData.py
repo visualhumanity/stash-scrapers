@@ -10,6 +10,7 @@ import unittest
 HERE = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = "OFScraperUserData.py"
 COMMUNITY = os.path.join(os.path.dirname(HERE), "community")
+CONVERTER = os.path.join(os.path.dirname(HERE), "ConvertHtmlToMarkdown")
 
 # All data in this file is made up.
 SCHEMA = """
@@ -41,7 +42,7 @@ RESPONSE_DIR = {
 class Sandbox:
     """A fake download root plus a private copy of the scraper, so the cache file stays in the sandbox."""
 
-    def __init__(self):
+    def __init__(self, with_converter=True):
         self.tmp = tempfile.mkdtemp()
         self.root = os.path.join(self.tmp, "download")
         os.makedirs(os.path.join(self.root, ".data"))
@@ -50,6 +51,8 @@ class Sandbox:
         os.makedirs(self.scraper_dir)
         shutil.copy(os.path.join(HERE, SCRIPT_NAME), self.scraper_dir)
         os.symlink(COMMUNITY, os.path.join(scrapers, "community"))
+        if with_converter:
+            os.symlink(CONVERTER, os.path.join(scrapers, "ConvertHtmlToMarkdown"))
         self.script = os.path.join(self.scraper_dir, SCRIPT_NAME)
         self.cache_path = os.path.join(self.scraper_dir, "cache_db_location.json")
 
@@ -129,7 +132,7 @@ class TimelinePostTests(Base):
             "studio": {"name": "examplestudio"},
             "performers": [{"name": "Example Name"}],
             "urls": ["https://onlyfans.com/9001/examplestudio"],
-            "details": "<p>Hello there</p>",
+            "details": "Hello there",
         })
 
 
@@ -184,6 +187,29 @@ class NoMatchTests(Base):
                                  post_id=70, api_type="Timeline", text="",
                                  created_at="2001-02-03T12:00:00+00:00")
         self.assertNotIn("details", result)
+
+
+class DescriptionTests(Base):
+    def details(self, text, box=None):
+        box = box or self.box
+        return box.scrape("Example Name (examplestudio)", "examplestudio", media_id=85,
+                          post_id=85, api_type="Timeline", text=text,
+                          created_at="2001-02-03T12:00:00+00:00")["details"]
+
+    def test_html_description_becomes_markdown_with_absolute_links(self):
+        text = '<p>Hi <b>all</b><br>see <a href="/linkeduser">@linkeduser</a> or <a href="https://example.com/x">site</a></p>'
+        self.assertEqual(
+            self.details(text),
+            "Hi **all**\nsee [@linkeduser](https://onlyfans.com/linkeduser) or [site](https://example.com/x)",
+        )
+
+    def test_plain_text_description_is_unchanged(self):
+        self.assertEqual(self.details("5 < 10 and plain"), "5 < 10 and plain")
+
+    def test_missing_converter_keeps_html(self):
+        box = Sandbox(with_converter=False)
+        self.addCleanup(box.cleanup)
+        self.assertEqual(self.details("<p>Hi</p>", box), "<p>Hi</p>")
 
 
 class MentionTests(Base):

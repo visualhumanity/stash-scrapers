@@ -10,9 +10,11 @@ Scene scraper (`sceneByFragment`) for videos downloaded by OF-Scraper. It reads 
 | Studio | account username from the model folder name |
 | Performers | display name from the model folder name, plus every account mentioned in the description |
 | URL | `https://onlyfans.com/<post id>/<username>`, posts only (timeline, archived, pinned, paid); none for messages and stories |
-| Description | post text as stored (raw HTML) |
+| Description | post text converted from HTML to Markdown by the `ConvertHtmlToMarkdown` scraper's converter; relative links (`/name`) become `https://onlyfans.com/name`; plain text is left as is |
 
 Title, director, galleries and tags are not set.
+
+This scraper depends on the **Convert HTML to Markdown** scraper (installed automatically as a requirement). If it is missing, descriptions stay as raw HTML and a warning is logged.
 
 ## Expected layout
 
@@ -41,4 +43,4 @@ OF-Scraper truncates long file names, which can cut off the `_<media id>]` suffi
 
 ## Tests
 
-`python -B -m unittest test_OFScraperUserData` from this folder. They build fake download roots with synthetic databases.
+`python -B -m unittest test_OFScraperUserData` from this folder (needs the sibling `ConvertHtmlToMarkdown` folder). They build fake download roots with synthetic databases.

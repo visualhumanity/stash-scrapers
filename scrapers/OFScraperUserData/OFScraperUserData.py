@@ -9,7 +9,9 @@ from datetime import datetime, timezone
 from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "community"))
+SCRAPERS_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+sys.path.insert(0, os.path.join(SCRAPERS_DIR, "community"))
+sys.path.insert(0, os.path.join(SCRAPERS_DIR, "ConvertHtmlToMarkdown"))
 
 try:
     from py_common import log
@@ -20,6 +22,12 @@ except ModuleNotFoundError:
         file=sys.stderr,
     )
     sys.exit(1)
+
+try:
+    from ConvertHtmlToMarkdown import html_to_markdown, looks_like_html
+except ModuleNotFoundError:
+    html_to_markdown = looks_like_html = None
+    log.warning("ConvertHtmlToMarkdown scraper not found; descriptions stay HTML")
 
 MODEL_FOLDER = re.compile(r"^(?P<name>.*) \((?P<username>[^()]+)\)$")
 CACHE_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), "cache_db_location.json")
@@ -152,6 +160,13 @@ def mentions(text, own_username):
     return names
 
 
+def to_markdown(text):
+    if html_to_markdown is None or not looks_like_html(text):
+        return text
+    absolute = re.sub(r"""(href=["'])/(?!/)""", r"\1https://onlyfans.com/", text)
+    return html_to_markdown(absolute) or text
+
+
 def scrape(fragment):
     files = fragment.get("files") or []
     if not files:
@@ -179,7 +194,7 @@ def scrape(fragment):
     if is_post:
         result["urls"] = [f"https://onlyfans.com/{post_id}/{username}"]
     if text:
-        result["details"] = text
+        result["details"] = to_markdown(text)
     return result
 
 
