@@ -11,8 +11,22 @@ Scene scraper (`sceneByFragment`) for videos downloaded by OF-Scraper. It reads 
 | Performers | display name from the model folder name, plus every account mentioned in the description |
 | URL | `https://onlyfans.com/<post id>/<username>`, posts only (timeline, archived, pinned, paid); none for messages and stories |
 | Description | post text converted from HTML to Markdown by the `ConvertHtmlToMarkdown` scraper's converter; relative links (`/name`) become `https://onlyfans.com/name`; plain text is left as is |
+| Title | inferred from the description (OnlyFans has no titles), see below; not set when there is no usable text |
 
-Title, director, galleries and tags are not set.
+Director, galleries and tags are not set.
+
+## Title inference
+
+1. HTML is stripped (`<br>`, `</p><p>` become line breaks, entities decoded, `**` and `__` removed).
+2. Per line, filler is removed: link pointers (`link in bio`, `link below`), tip asks (`tip $5 ...`, `tip menu`), thanks (`thanks for subscribing`), calls to action (`subscribe now`, `DM me`), `stream started at ...`, and `FREE:` or `12 MIN -` prefixes. Bare greetings stay.
+3. The first line with usable text is used. If none is left (empty, emoji only, only filler) no title is set.
+4. The line is split into segments that end at an emoji run (kept whole) or at `. ! ? ... 。 ！ ？`. A period after `pt min vs ft no dr mr mrs st` or inside a number does not end a segment.
+5. Segments are joined from the left until the title is 30 characters long.
+6. Over 90 characters, the title is cut at a word boundary and ends with `…`.
+7. Bare URLs, trailing `, ; : - –` and one trailing period are removed; `!`, `?`, `...` and emoji are kept.
+8. A title with no lowercase letters is converted to title case (acronyms such as `POV` and `PT` stay uppercase).
+
+The description keeps the full text.
 
 This scraper depends on the **Convert HTML to Markdown** scraper (installed automatically as a requirement). If it is missing, descriptions stay as raw HTML and a warning is logged.
 

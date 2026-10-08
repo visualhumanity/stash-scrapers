@@ -132,6 +132,7 @@ class TimelinePostTests(Base):
             "studio": {"name": "examplestudio"},
             "performers": [{"name": "Example Name"}],
             "urls": ["https://onlyfans.com/9001/examplestudio"],
+            "title": "Hello there",
             "details": "Hello there",
         })
 
@@ -210,6 +211,111 @@ class DescriptionTests(Base):
         box = Sandbox(with_converter=False)
         self.addCleanup(box.cleanup)
         self.assertEqual(self.details("<p>Hi</p>", box), "<p>Hi</p>")
+
+
+class TitleTests(Base):
+    next_id = 1000
+
+    def result(self, text, api_type="Timeline"):
+        TitleTests.next_id += 1
+        return self.box.scrape("Example Name (examplestudio)", "examplestudio",
+                               media_id=TitleTests.next_id, post_id=TitleTests.next_id,
+                               api_type=api_type, text=text,
+                               created_at="2001-02-03T12:00:00+00:00")
+
+    def title(self, text, api_type="Timeline"):
+        return self.result(text, api_type).get("title")
+
+    def check(self, cases):
+        for text, expected in cases:
+            with self.subTest(text=text):
+                self.assertEqual(self.title(text), expected)
+
+    def test_short_line_is_the_whole_title_and_emoji_stay(self):
+        self.check([("Pool day 🌊", "Pool day 🌊")])
+
+    def test_first_html_paragraph_or_line_is_the_candidate(self):
+        self.check([
+            ("<p>Morning stretch 🧘</p><p>Second paragraph here</p>", "Morning stretch 🧘"),
+            ("First line<br />Second line", "First line"),
+            ("First line<br>Second line", "First line"),
+            ("<p>Fish &amp; chips</p>", "Fish & chips"),
+        ])
+
+    def test_no_usable_text_gives_no_title(self):
+        for text in (None, "", "   ", "🌊💦", "<p></p>"):
+            with self.subTest(text=text):
+                self.assertNotIn("title", self.result(text))
+
+    def test_title_ends_at_the_first_segment_of_30_characters(self):
+        self.check([
+            ("Pool boy shows his best splash and dives in 🏊💦 do you like when I swim? Tell me 😘",
+             "Pool boy shows his best splash and dives in 🏊💦"),
+            ("Trying my robe 💕 it’s so soft, but then it got too warm and I had to take it off 🤭 enjoy babes 😘",
+             "Trying my robe 💕 it’s so soft, but then it got too warm and I had to take it off 🤭"),
+            ("Lazy Sunday in bed. Come cuddle with me. Missing you all",
+             "Lazy Sunday in bed. Come cuddle with me"),
+            ("Wait for it... then he cums all over 💦 so good",
+             "Wait for it... then he cums all over 💦"),
+            ("Big news! Videos every week, so subscribe", "Big news! Videos every week, so subscribe"),
+        ])
+
+    def test_abbreviations_numbers_and_handles_do_not_end_a_segment(self):
+        self.check([
+            ("Morning workout with the crew, min. 20 of cardio. Then more",
+             "Morning workout with the crew, min. 20 of cardio"),
+            ("Rated 4.5 stars by everybody who watched it! Thanks",
+             "Rated 4.5 stars by everybody who watched it!"),
+        ])
+
+    def test_emoji_sequences_are_never_split(self):
+        text = "Long walk through the park today 👩🏽‍❤️‍👨🏽 and then we went home"
+        self.assertEqual(self.title(text), "Long walk through the park today 👩🏽‍❤️‍👨🏽")
+
+    def test_cjk_punctuation_ends_a_segment_without_spaces(self):
+        sentence = "楽しい一日でした" * 4
+        self.check([(sentence + "。明日もよろしくお願いします", sentence)])
+
+    def test_filler_is_removed_before_the_title_is_chosen(self):
+        self.check([
+            ("Shower solo 🚿 tip $5 for more", "Shower solo 🚿"),
+            ("Hey! New scene is up, link below", "Hey! New scene is up"),
+            ("Thanks for subscribing! Morning stretch with the whole crew", "Morning stretch with the whole crew"),
+            ("FREE: 12 MIN - Morning stretch", "Morning stretch"),
+            ("Surprise 🎁", "Surprise 🎁"),
+        ])
+        for text in ("Thanks for subscribing!", "Link in bio", "Stream started at 5pm"):
+            with self.subTest(text=text):
+                self.assertNotIn("title", self.result(text))
+
+    def test_filler_only_first_line_moves_to_the_next_line(self):
+        self.assertEqual(self.title("<p>Link in bio</p><p>Morning stretch</p>"), "Morning stretch")
+
+    def test_cleanup(self):
+        self.check([
+            ("**Morning stretch**", "Morning stretch"),
+            ("Morning   stretch.", "Morning stretch"),
+            ("Morning stretch!", "Morning stretch!"),
+            ("Wait for it...", "Wait for it..."),
+            ("New scene with @example_user,", "New scene with @example_user"),
+            ("Watch here https://example.com/x", "Watch here"),
+        ])
+
+    def test_all_caps_becomes_title_case_but_mixed_case_is_kept(self):
+        self.check([
+            ("MORNING STRETCH PT. 2 - SOLO", "Morning Stretch PT. 2 - Solo"),
+            ("SHOWER SOLO 🚿 POV", "Shower Solo 🚿 POV"),
+            ("THE BEST DAY OF THE YEAR", "The Best Day of the Year"),
+            ("Morning STRETCH", "Morning STRETCH"),
+        ])
+
+    def test_long_title_is_cut_at_a_word_with_ellipsis_within_90(self):
+        self.check([(" ".join(["alpha"] * 25), " ".join(["alpha"] * 15) + "…")])
+
+    def test_messages_and_stories_get_titles(self):
+        for api_type in ("Messages", "Stories"):
+            with self.subTest(api_type=api_type):
+                self.assertEqual(self.title("Pool day 🌊", api_type), "Pool day 🌊")
 
 
 class MentionTests(Base):

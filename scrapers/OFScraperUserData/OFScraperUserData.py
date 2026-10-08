@@ -1,4 +1,5 @@
 import glob
+import html
 import json
 import os
 import re
@@ -31,6 +32,39 @@ except ModuleNotFoundError:
 
 MODEL_FOLDER = re.compile(r"^(?P<name>.*) \((?P<username>[^()]+)\)$")
 CACHE_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), "cache_db_location.json")
+
+TITLE_MIN = 30
+TITLE_MAX = 90
+TRIM = " ,;:-–"
+SENTENCE_PUNCTUATION = ".!?…。！？"
+ABBREVIATIONS = {"pt", "min", "vs", "ft", "no", "dr", "mr", "mrs", "st"}
+ACRONYMS = {"POV", "PT", "HD", "VR", "DM", "BJ", "DP", "XXX", "GFE", "JOI", "ASMR", "BBC", "FTM"}
+SMALL_WORDS = {"a", "an", "the", "and", "or", "of", "in", "on", "at", "to", "for", "with", "vs"}
+
+EMOJI = (
+    "‼⁉↔-↪⌚-⏿▪-◾☀-➿⤴⤵⬅-⭕"
+    "〰〽㊗㊙\U0001f000-\U0001faff"
+)
+EMOJI_UNIT = f"[{EMOJI}][{EMOJI}️‍⃣]*"
+EMOJI_RUN = rf"{EMOJI_UNIT}(?:\s+{EMOJI_UNIT})*"
+EMOJI_UNIT_RE = re.compile(EMOJI_UNIT)
+EMOJI_AFTER = re.compile(rf"\s*{EMOJI_RUN}")
+SEGMENT_END = re.compile(rf"{EMOJI_RUN}|[.!?]+(?=\s|$|[{EMOJI}])|[…。！？]+")
+
+FILLER = re.compile("|".join([
+    r"\b(?:the )?links? (?:in (?:my )?(?:bio|comments?)|below|above)\b",
+    r"\bcheck (?:out )?the link\b",
+    r"\btips? (?:menu|welcome)\b",
+    r"\btip\s*\$?\d[^.!?…。！？]*",
+    r"\bthank(?:s| you)(?: so much)? for (?:subscribing|the support|watching)\b",
+    r"\b(?:subscribe|sub) now\b",
+    r"\bdm me\b",
+    r"\bmessage me\b",
+    r"\bcheck your dms\b",
+    r"\bunlock now\b",
+    r"\bstream started at[^.!?…。！？]*",
+]), re.I)
+PREFIX = re.compile(r"^\s*(?:free\s*[:\-–]\s*|\d+\s*(?:min(?:ute)?s?)\.?\s*(?:[:\-–]|of\b)\s*)+", re.I)
 
 QUERY = """
 SELECT m.post_id,
@@ -167,6 +201,86 @@ def to_markdown(text):
     return html_to_markdown(absolute) or text
 
 
+def plain_lines(text):
+    text = re.sub(r"(?i)</p>\s*<p[^>]*>|<br\s*/?>|</?p[^>]*>", "\n", text)
+    text = re.sub(r"</?[A-Za-z][^>]*>", "", text)
+    text = html.unescape(text).replace("\xa0", " ")
+    text = text.replace("**", "").replace("__", "")
+    return [line.strip() for line in text.splitlines() if line.strip()]
+
+
+def segments(line):
+    parts, start, pos = [], 0, 0
+    while True:
+        found = SEGMENT_END.search(line, pos)
+        if not found:
+            break
+        end = found.end()
+        if found.group() == ".":
+            word = re.search(r"(\w+)$", line[:found.start()])
+            if word and word.group(1).lower() in ABBREVIATIONS:
+                pos = end
+                continue
+        if found.group()[0] in SENTENCE_PUNCTUATION:
+            trailing = EMOJI_AFTER.match(line, end)
+            if trailing:
+                end = trailing.end()
+        parts.append(line[start:end])
+        start = pos = end
+    parts.append(line[start:])
+    cleaned = []
+    for part in parts:
+        part = re.sub(r"\s+", " ", FILLER.sub("", part)).strip(TRIM)
+        if any(c.isalnum() for c in part) or EMOJI_UNIT_RE.search(part):
+            cleaned.append(part)
+    return cleaned
+
+
+def title_case(title):
+    body = re.sub(r"@[\w.\-]+", "", title)
+    if not any(c.isalpha() for c in body) or any(c.islower() for c in body):
+        return title
+    first = [True]
+
+    def fix(found):
+        word = found.group()
+        is_first, first[0] = first[0], False
+        if word.startswith("@") or word in ACRONYMS:
+            return word
+        low = word.lower()
+        return low if low in SMALL_WORDS and not is_first else low.capitalize()
+
+    return re.sub(r"@[\w.\-]+|[A-Za-z][A-Za-z’']*", fix, title)
+
+
+def finish_title(title):
+    title = re.sub(r"\s+", " ", title).strip(TRIM)
+    title = re.sub(r"(?<!\.)\.$|。$", "", title)
+    title = title_case(title)
+    if len(title) > TITLE_MAX:
+        head = title[:TITLE_MAX - 1]
+        if not title[TITLE_MAX - 1].isspace() and " " in head:
+            head = head.rsplit(" ", 1)[0]
+        title = head.rstrip(TRIM + ".‍") + "…"
+    return title
+
+
+def infer_title(text):
+    for line in plain_lines(text or ""):
+        line = re.sub(r"(?:https?://|www\.)\S+", "", line)
+        line = PREFIX.sub("", line)
+        parts = segments(line)
+        if not any(c.isalnum() for c in "".join(parts)):
+            continue
+        title = ""
+        for part in parts:
+            title = f"{title} {part}".strip()
+            if len(title) >= TITLE_MIN:
+                break
+        return finish_title(title) or None
+    return None
+
+
 def scrape(fragment):
     files = fragment.get("files") or []
     if not files:
@@ -193,6 +307,9 @@ def scrape(fragment):
         result["date"] = to_local_date(created_at)
     if is_post:
         result["urls"] = [f"https://onlyfans.com/{post_id}/{username}"]
+    title = infer_title(text)
+    if title:
+        result["title"] = title
     if text:
         result["details"] = to_markdown(text)
     return result
