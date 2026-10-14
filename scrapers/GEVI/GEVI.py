@@ -1,9 +1,18 @@
 import json
+import os
 import re
 import sys
 
-from py_common import log
-from py_common.deps import ensure_requirements
+# py_common is installed at scrapers/community/py_common/; our scraper is at
+# scrapers/<vendor>/GEVI/ — go up two levels then into community/
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "community"))
+
+try:
+    from py_common import log
+    from py_common.deps import ensure_requirements
+except ModuleNotFoundError:
+    print("You need to install py_common from the community scraper package.", file=sys.stderr)
+    sys.exit(1)
 
 ensure_requirements("requests", "bs4:beautifulsoup4")
 

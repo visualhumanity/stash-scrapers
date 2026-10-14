@@ -49,6 +49,7 @@ sceneByFragment:               # action exposed in the Stash Identify task
 - **stdout**: JSON object with fields to update (`{"date": "YYYY-MM-DD"}`), `{}` for no update, or `null` on a fatal error.
 - Use `python` (not `python3`) to match the existing scraper manifests.
 - Import logging from `py_common`: `from py_common import log` → `log.trace/debug/info/warning/error(...)`.
+- Before any `py_common` import, add `<scrapers>/community` to `sys.path` (copy the block at the top of `DateFromFilename.py`). Stash's default Community source installs `py_common` into `scrapers/community/`, but only puts `scrapers/` on `PYTHONPATH`, so a bare import fails unless another source happens to install `py_common` at the top level.
 - Guard against missing `files` before accessing paths; print `null` and `sys.exit(0)` for non-recoverable errors.
 
 ## Build and deployment
