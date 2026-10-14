@@ -17,7 +17,7 @@ except ModuleNotFoundError:
 ensure_requirements("requests", "bs4:beautifulsoup4")
 
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Comment, Tag
 
 HAIR_MAP = {
     "blonde": "Blonde",
@@ -68,15 +68,164 @@ def strip_name_suffix(name):
     return re.sub(r'\s*\([^)]*\)\s*$', '', name).strip()
 
 
-def _build_description(performer_names, desc_div):
-    parts = []
-    if performer_names:
-        parts.append("Performers: " + ", ".join(performer_names))
-    if desc_div:
-        body = "\n\n".join(p.get_text(strip=True) for p in desc_div.find_all("p") if p.get_text(strip=True))
-        if body:
-            parts.append(body)
-    return "\n\n".join(parts) if parts else None
+def collapse(text):
+    return " ".join(text.split())
+
+
+def escape_markdown(text):
+    """Escape line starts that Markdown would read as structure (headings, quotes,
+    lists, rules). Inline markup such as *emphasis* is left alone."""
+    lines = []
+    for line in text.split("\n"):
+        stripped = line.strip()
+        if stripped and re.fullmatch(r"(-[ -]*|=[ =]*|_[ _]*)", stripped):
+            line = "\\" + stripped
+        elif match := re.match(r"(\d+)\.(\s|$)", line):
+            line = f"{match.group(1)}\\." + line[match.end(1) + 1:]
+        elif re.match(r"[#>+*-](\s|$)|#+(\s|$)", line):
+            line = "\\" + line
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def paragraphs(box):
+    """Paragraph texts, coping with the site's unclosed <p> tags nesting inside each other."""
+    texts = (
+        collapse("".join(
+            child.get_text() if isinstance(child, Tag) else str(child)
+            for child in p.children
+            if not isinstance(child, Comment) and not (isinstance(child, Tag) and child.name == "p")
+        ))
+        for p in box.find_all("p")
+    )
+    return "\n\n".join(escape_markdown(t) for t in texts if t)
+
+
+def movie_cast_links(soup):
+    """Performer links in the movie's Cast Credits box, first occurrence of each name."""
+    label = soup.find("div", string=re.compile(r"^\s*Cast Credits\s*$"))
+    box = label.find_next_sibling("div") if label else None
+    links, seen = [], set()
+    for a in box.find_all("a", href=re.compile(r"^performer/")) if box else []:
+        name = strip_name_suffix(a.get_text(strip=True))
+        if name and name not in seen:
+            seen.add(name)
+            links.append((name, a.get("href", "")))
+    return links
+
+
+def keycap(number):
+    """Keycap emoji for a scene number, one keycap per digit (🔟 for exactly 10)."""
+    if number == 10:
+        return "🔟"
+    return "".join(f"{digit}\ufe0f\u20e3" for digit in str(number))
+
+
+def role_marker(code):
+    """Top/bottom emoji from a GEVI action code such as "OgrAtRg".
+
+    The code is a run of segments, each an upper-case act letter followed by
+    lower-case flags: O oral, A anal, R rim; g/r give/receive, t/b top/bottom.
+    Only the anal top/bottom flags are shown.
+    """
+    flags = set("".join(re.findall(r"A([a-z]*)", code))) & {"t", "b"}
+    if flags == {"t", "b"}:
+        return " ↕️"
+    if flags == {"t"}:
+        return " ⬆️"
+    if flags == {"b"}:
+        return " ⬇️"
+    return ""
+
+
+def scene_cast(row):
+    """(name, action code) pairs from a scene's inline cast row."""
+    cast = []
+    for child in row.children:
+        if isinstance(child, Tag) and child.name == "a" and child.get("href", "").startswith("performer/"):
+            cast.append([strip_name_suffix(child.get_text(strip=True)), ""])
+        elif cast:
+            cast[-1][1] += child.get_text() if isinstance(child, Tag) else str(child)
+    return cast
+
+
+def scene_block(scene):
+    """(scene number or None, whether it has content, Markdown block) for one scenes-list entry."""
+    rows = scene.find_all("div", recursive=False)
+    head = rows[0] if rows else None
+    label_el = head.find("span") if head else None
+    label = collapse(label_el.get_text()) if label_el else ""
+    header = collapse("".join(
+        child.get_text() if isinstance(child, Tag) else str(child)
+        for child in head.children if child is not label_el
+    )) if head else ""
+
+    cast_row = next(
+        (row for row in rows[1:] if row.find("a", href=re.compile(r"^performer/"), recursive=False)),
+        None,
+    )
+    cast = scene_cast(cast_row) if cast_row else []
+
+    text_box = scene.select_one(".sceneText")
+    text = paragraphs(text_box) if text_box else ""
+
+    see_also = [
+        f"[{collapse(a.get_text())}]({BASE_URL}/{a['href']})"
+        for row in rows[1:]
+        if collapse(row.get_text()).lower().startswith("see also")
+        for a in row.find_all("a", href=re.compile(r"^video/"))
+    ]
+
+    match = re.match(r"Scene\s+(\d+)", label)
+    number = int(match.group(1)) if match else None
+    if number is not None:
+        heading = f"{keycap(number)} Scene {number}" + (f": {header}" if header else "")
+    else:
+        heading = " ".join(part for part in (label, header) if part)
+
+    parts = [f"**{heading}**"] if heading else []
+    if cast:
+        parts.append("👤 " + ", ".join(name + role_marker(code) for name, code in cast))
+    if text:
+        parts.append(text)
+    if see_also:
+        parts.append("See also: " + ", ".join(see_also))
+    has_content = bool(header or cast or text or see_also)
+    return number, has_content, "\n\n".join(parts)
+
+
+def scene_blocks(soup):
+    """Markdown blocks for the scenes list. An empty entry stays as a placeholder
+    heading unless another entry with the same number has content."""
+    scenes = [scene_block(scene) for scene in soup.select("#scenes div.scene")]
+    filled = {number for number, has_content, _ in scenes if has_content}
+    return [block for number, has_content, block in scenes if has_content or number not in filled]
+
+
+def awards(soup):
+    """🏆 lines from the Awards grid of (award, category) pairs."""
+    label = soup.find("div", string=re.compile(r"^\s*Awards:\s*$"))
+    grid = label.find_next_sibling("div") if label else None
+    cells = [collapse(cell.get_text()) for cell in grid.find_all("div", recursive=False)] if grid else []
+    lines = []
+    for award, category in zip(cells[::2], cells[1::2] + [""]):
+        award = escape_markdown(award)
+        if award:
+            lines.append(f"🏆 {award}: {category}" if category else f"🏆 {award}")
+    return lines
+
+
+def build_description(soup, lead=None):
+    """Markdown description of a movie page; lead is an optional first section."""
+    head = [lead] if lead else []
+    desc_div = soup.find("div", class_="wideCols-1")
+    if desc_div and (text := paragraphs(desc_div)):
+        head.append(text)
+    sections = ["\n\n".join(head)] if head else []
+    sections += scene_blocks(soup)
+    if award_lines := awards(soup):
+        sections.append("\n\n".join(award_lines))
+    return "\n\n---\n\n".join(sections) or None
 
 
 def get_stat(stats_container, label):
@@ -202,16 +351,8 @@ def group_from_url(url):
             if names:
                 result["director"] = ", ".join(names)
 
-    cast_div = soup.find("div", class_="columns-2")
-    performers = []
-    if cast_div:
-        for a in cast_div.find_all("a", href=re.compile(r"^performer/")):
-            name = strip_name_suffix(a.get_text(strip=True))
-            if name and name not in performers:
-                performers.append(name)
-
-    desc_div = soup.find("div", class_="wideCols-1")
-    description = _build_description(performers, desc_div)
+    cast = [name for name, _ in movie_cast_links(soup)]
+    description = build_description(soup, lead="👤 " + ", ".join(cast) if cast else None)
     if description:
         result["synopsis"] = description
 
@@ -260,19 +401,9 @@ def scene_from_url(url):
             if names:
                 result["director"] = ", ".join(names)
 
-    cast_div = soup.find("div", class_="columns-2")
-    performers = []
-    seen = set()
-    if cast_div:
-        for a in cast_div.find_all("a", href=re.compile(r"^performer/")):
-            name = strip_name_suffix(a.get_text(strip=True))
-            href = a.get("href", "")
-            if name and name not in seen:
-                seen.add(name)
-                performers.append({"name": name, "urls": [f"{BASE_URL}/{href}"]})
+    performers = [{"name": name, "urls": [f"{BASE_URL}/{href}"]} for name, href in movie_cast_links(soup)]
 
-    desc_div = soup.find("div", class_="wideCols-1")
-    description = _build_description([p["name"] for p in performers], desc_div)
+    description = build_description(soup)
     if description:
         result["details"] = description
 

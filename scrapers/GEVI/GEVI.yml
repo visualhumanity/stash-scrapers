@@ -1,5 +1,6 @@
 name: VH - Gay Erotic Video Index (GEVI)
 # requires: py_common
+# ignore: test_GEVI.py
 
 performerByURL:
   - action: script
@@ -27,4 +28,4 @@ groupByURL:
       - python
       - GEVI.py
       - group-by-url
-# Last Updated 2026-06-01
+# Last Updated 2026-10-14
