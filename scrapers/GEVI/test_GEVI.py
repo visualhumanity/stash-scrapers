@@ -282,5 +282,42 @@ class EscapingTests(unittest.TestCase):
         )
 
 
+class ReviewFollowUpTests(unittest.TestCase):
+    def full_page(self):
+        return movie_page(
+            cast=["Performer A", "Performer B"],
+            description=["Movie text."],
+            scenes=[scene("Scene 1:", "Title", cast=[("Performer A", "At"), ("Performer B", "Ab")],
+                          text=["Scene text."], see_also=[(2, "Other Example Movie")])],
+            awards=[("2001 Example Award", "Best Example Video")],
+        )
+
+    def test_group_differs_from_scene_only_by_the_cast_prefix(self):
+        page = self.full_page()
+        details = scrape_scene(page)["details"]
+        self.assertEqual(scrape_group(page)["synopsis"], "👤 Performer A, Performer B\n\n" + details)
+        self.assertEqual(
+            details,
+            "Movie text.\n\n---\n\n**1️⃣ Scene 1: Title**\n\n👤 Performer A ⬆️, Performer B ⬇️\n\n"
+            "Scene text.\n\nSee also: [Other Example Movie](https://gayeroticvideoindex.com/video/2)\n\n"
+            "---\n\n🏆 2001 Example Award: Best Example Video",
+        )
+
+    def test_asterisk_rule_lines_are_escaped(self):
+        self.assertEqual(scrape_scene(movie_page(description=["***", "* * *"]))["details"], "\\***\n\n\\* * *")
+
+    def test_brackets_in_see_also_titles_are_escaped(self):
+        page = movie_page(scenes=[scene("Scene 1:", "Title", see_also=[(2, "Example [Uncut]")])])
+        self.assertIn("[Example \\[Uncut\\]](https://gayeroticvideoindex.com/video/2)", scrape_scene(page)["details"])
+
+    def test_entry_without_label_or_content_is_dropped(self):
+        page = movie_page(scenes=['<div class="scene flex-col"><div class=""></div></div>', scene("Scene 1:", "Title")])
+        self.assertEqual(scrape_scene(page)["details"], "**1️⃣ Scene 1: Title**")
+
+    def test_unnumbered_entries_do_not_dedupe_each_other(self):
+        page = movie_page(scenes=[scene("Bonus:", "Extra"), scene("Trailer:")])
+        self.assertEqual(scrape_scene(page)["details"], "**Bonus: Extra**\n\n---\n\n**Trailer:**")
+
+
 if __name__ == "__main__":
     unittest.main()

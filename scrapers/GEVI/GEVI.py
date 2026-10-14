@@ -72,13 +72,17 @@ def collapse(text):
     return " ".join(text.split())
 
 
+def node_text(node):
+    return node.get_text() if isinstance(node, Tag) else str(node)
+
+
 def escape_markdown(text):
     """Escape line starts that Markdown would read as structure (headings, quotes,
     lists, rules). Inline markup such as *emphasis* is left alone."""
     lines = []
     for line in text.split("\n"):
         stripped = line.strip()
-        if stripped and re.fullmatch(r"(-[ -]*|=[ =]*|_[ _]*)", stripped):
+        if stripped and re.fullmatch(r"(-[ -]*|=[ =]*|_[ _]*|\*[ *]*)", stripped):
             line = "\\" + stripped
         elif match := re.match(r"(\d+)\.(\s|$)", line):
             line = f"{match.group(1)}\\." + line[match.end(1) + 1:]
@@ -92,7 +96,7 @@ def paragraphs(box):
     """Paragraph texts, coping with the site's unclosed <p> tags nesting inside each other."""
     texts = (
         collapse("".join(
-            child.get_text() if isinstance(child, Tag) else str(child)
+            node_text(child)
             for child in p.children
             if not isinstance(child, Comment) and not (isinstance(child, Tag) and child.name == "p")
         ))
@@ -145,7 +149,7 @@ def scene_cast(row):
         if isinstance(child, Tag) and child.name == "a" and child.get("href", "").startswith("performer/"):
             cast.append([strip_name_suffix(child.get_text(strip=True)), ""])
         elif cast:
-            cast[-1][1] += child.get_text() if isinstance(child, Tag) else str(child)
+            cast[-1][1] += node_text(child)
     return cast
 
 
@@ -156,8 +160,7 @@ def scene_block(scene):
     label_el = head.find("span") if head else None
     label = collapse(label_el.get_text()) if label_el else ""
     header = collapse("".join(
-        child.get_text() if isinstance(child, Tag) else str(child)
-        for child in head.children if child is not label_el
+        node_text(child) for child in head.children if child is not label_el
     )) if head else ""
 
     cast_row = next(
@@ -170,7 +173,7 @@ def scene_block(scene):
     text = paragraphs(text_box) if text_box else ""
 
     see_also = [
-        f"[{collapse(a.get_text())}]({BASE_URL}/{a['href']})"
+        "[{}]({}/{})".format(re.sub(r"([\[\]])", r"\\\1", collapse(a.get_text())), BASE_URL, a["href"])
         for row in rows[1:]
         if collapse(row.get_text()).lower().startswith("see also")
         for a in row.find_all("a", href=re.compile(r"^video/"))
@@ -198,8 +201,11 @@ def scene_blocks(soup):
     """Markdown blocks for the scenes list. An empty entry stays as a placeholder
     heading unless another entry with the same number has content."""
     scenes = [scene_block(scene) for scene in soup.select("#scenes div.scene")]
-    filled = {number for number, has_content, _ in scenes if has_content}
-    return [block for number, has_content, block in scenes if has_content or number not in filled]
+    filled = {number for number, has_content, _ in scenes if has_content and number is not None}
+    return [
+        block for number, has_content, block in scenes
+        if block and (has_content or number is None or number not in filled)
+    ]
 
 
 def awards(soup):
