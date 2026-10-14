@@ -28,7 +28,7 @@ Director, galleries and tags are not set.
 
 The description keeps the full text.
 
-This scraper depends on the **Convert HTML to Markdown** scraper (installed automatically as a requirement). If it is missing, descriptions stay as raw HTML and a warning is logged.
+This scraper depends on the **VH - Convert HTML to Markdown** scraper (installed automatically as a requirement). If it is missing, descriptions stay as raw HTML and a warning is logged.
 
 ## Expected layout
 

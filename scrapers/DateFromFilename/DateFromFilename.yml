@@ -1,4 +1,4 @@
-name: Extract Date from Filename
+name: VH - Extract Date from Filename
 # requires: py_common
 
 sceneByFragment:

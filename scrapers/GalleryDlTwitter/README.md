@@ -44,7 +44,7 @@ A missing `TZ` or an unknown time zone is not an error: the scraper quietly uses
 
 ## Setup
 
-1. Add this repository's scraper source index in Stash under Settings > Metadata Providers > Available Scrapers, then install **Gallery-DL - Twitter** and its dependency **py_common**. The container needs Python 3 with `tzdata` for the time zone conversion.
+1. Add this repository's scraper source index in Stash under Settings > Metadata Providers > Available Scrapers, then install **VH - Gallery-DL - Twitter** and its dependency **py_common**. The container needs Python 3 with `tzdata` for the time zone conversion.
 2. **Scenes need nothing else.**
 3. **Images need a `py_common` config.** Stash does not give an image scraper the file path (only the image ID), so the scraper asks Stash's GraphQL API for it, using `py_common`. Create or edit `py_common/config.ini` inside Stash's scrapers folder (`scrapers/py_common/config.ini` under your Stash configuration directory) and set only what this scraper depends on:
 
