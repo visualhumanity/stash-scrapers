@@ -295,16 +295,26 @@ class ReviewFollowUpTests(unittest.TestCase):
             awards=[("2001 Example Award", "Best Example Video")],
         )
 
-    def test_group_differs_from_scene_only_by_the_cast_prefix(self):
-        page = self.full_page()
-        details = scrape_scene(page)["details"]
-        self.assertEqual(scrape_group(page)["synopsis"], "👤 Performer A, Performer B\n\n" + details)
+    def test_scene_details_include_the_scene_text(self):
         self.assertEqual(
-            details,
+            scrape_scene(self.full_page())["details"],
             "Movie text.\n\n---\n\n**1️⃣ Scene 1: Title**\n\n👤 Performer A ⬆️, Performer B ⬇️\n\n"
             "Scene text.\n\nSee also: [Other Example Movie](https://gayeroticvideoindex.com/video/2)\n\n"
             "---\n\n🏆 2001 Example Award: Best Example Video",
         )
+
+    def test_group_synopsis_leaves_out_the_scene_text(self):
+        self.assertEqual(
+            scrape_group(self.full_page())["synopsis"],
+            "👤 Performer A, Performer B\n\nMovie text.\n\n---\n\n"
+            "**1️⃣ Scene 1: Title**\n\n👤 Performer A ⬆️, Performer B ⬇️\n\n"
+            "See also: [Other Example Movie](https://gayeroticvideoindex.com/video/2)\n\n"
+            "---\n\n🏆 2001 Example Award: Best Example Video",
+        )
+
+    def test_group_keeps_a_text_only_scene_over_its_empty_duplicate(self):
+        page = movie_page(scenes=[scene("Scene 1:"), scene("Scene 1:", text=["Scene text."])])
+        self.assertEqual(scrape_group(page)["synopsis"], "**1️⃣ Scene 1**")
 
     def test_asterisk_rule_lines_are_escaped(self):
         self.assertEqual(scrape_scene(movie_page(description=["***", "* * *"]))["details"], "\\***\n\n\\* * *")

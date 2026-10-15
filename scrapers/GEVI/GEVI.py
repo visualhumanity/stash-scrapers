@@ -153,8 +153,9 @@ def scene_cast(row):
     return cast
 
 
-def scene_block(scene):
-    """(scene number or None, whether it has content, Markdown block) for one scenes-list entry."""
+def scene_block(scene, include_text=True):
+    """(scene number or None, whether it has content, Markdown block) for one scenes-list entry.
+    The scene text counts as content even when include_text leaves it out of the block."""
     rows = scene.find_all("div", recursive=False)
     head = rows[0] if rows else None
     label_el = head.find("span") if head else None
@@ -189,7 +190,7 @@ def scene_block(scene):
     parts = [f"**{heading}**"] if heading else []
     if cast:
         parts.append("👤 " + ", ".join(name + role_marker(code) for name, code in cast))
-    if text:
+    if text and include_text:
         parts.append(text)
     if see_also:
         parts.append("See also: " + ", ".join(see_also))
@@ -197,10 +198,10 @@ def scene_block(scene):
     return number, has_content, "\n\n".join(parts)
 
 
-def scene_blocks(soup):
+def scene_blocks(soup, include_text=True):
     """Markdown blocks for the scenes list. An empty entry stays as a placeholder
     heading unless another entry with the same number has content."""
-    scenes = [scene_block(scene) for scene in soup.select("#scenes div.scene")]
+    scenes = [scene_block(scene, include_text) for scene in soup.select("#scenes div.scene")]
     filled = {number for number, has_content, _ in scenes if has_content and number is not None}
     return [
         block for number, has_content, block in scenes
@@ -221,14 +222,15 @@ def awards(soup):
     return lines
 
 
-def build_description(soup, lead=None):
-    """Markdown description of a movie page; lead is an optional first section."""
+def build_description(soup, lead=None, scene_text=True):
+    """Markdown description of a movie page; lead is an optional first section,
+    scene_text whether scene blocks carry each scene's description."""
     head = [lead] if lead else []
     desc_div = soup.find("div", class_="wideCols-1")
     if desc_div and (text := paragraphs(desc_div)):
         head.append(text)
     sections = ["\n\n".join(head)] if head else []
-    sections += scene_blocks(soup)
+    sections += scene_blocks(soup, scene_text)
     if award_lines := awards(soup):
         sections.append("\n\n".join(award_lines))
     return "\n\n---\n\n".join(sections) or None
@@ -364,7 +366,7 @@ def group_from_url(url):
                 result["director"] = ", ".join(names)
 
     cast = [name for name, _ in movie_cast_links(soup)]
-    description = build_description(soup, lead="👤 " + ", ".join(cast) if cast else None)
+    description = build_description(soup, lead="👤 " + ", ".join(cast) if cast else None, scene_text=False)
     if description:
         result["synopsis"] = description
 
