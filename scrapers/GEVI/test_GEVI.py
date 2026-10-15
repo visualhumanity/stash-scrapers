@@ -82,14 +82,20 @@ def release_table(released, length):
     )
 
 
-def movie_page(cast=(), description=(), scenes=None, awards=(), released="2001", length="90"):
+def movie_page(cast=(), description=(), scenes=None, awards=(), released="2001", length="90", covers=()):
     return (
         "<html><body>"
         '<div id="jsrequired"><h1 class="text-center text-3xl text-yellow-300">'
         "This website requires that JavaScript be enabled in order to display\n properly.</h1></div>"
         '<section id="warning"><h1 class="text-2xl font-bold text-yellow-300">Site Name</h1></section>'
         '<h2 class="text-center text-2xl uppercase md:block md:text-3xl">Site Heading</h2>'
-        '<div id="coverContainer"><a href="performer/99">Cover Caption Name</a></div>'
+        '<div id="coverContainer"><a href="performer/99">Cover Caption Name</a>'
+        + "".join(
+            f"<img src='images/Covers/Icons/1/{name}' alt class='pictureIcon h-[184px]' "
+            f"image='images/Covers/1/{name}'subtitle=\"\" />"
+            for name in covers
+        )
+        + "</div>"
         '<section id="data"><section>'
         '<h1 class="text-center text-2xl text-yellow-300 md:text-start md:text-3xl">\n  Example Movie  </h1>'
         + release_table(released, length)
@@ -490,6 +496,21 @@ class NoneValueTests(unittest.TestCase):
 
     def test_only_none_gives_no_tattoos(self):
         self.assertNotIn("tattoos", scrape_performer(performer_page(tattoos=("None", []))))
+
+
+class CoverTests(unittest.TestCase):
+    def test_scene_image_is_the_full_size_front_cover(self):
+        scene_result = scrape_scene(movie_page(covers=["video1.jpg", "video1b.jpg"]))
+        self.assertEqual(scene_result["image"], "https://gayeroticvideoindex.com/images/Covers/1/video1.jpg")
+
+    def test_group_gets_front_and_back_covers(self):
+        group = scrape_group(movie_page(covers=["video1.jpg", "video1b.jpg"]))
+        self.assertEqual(group["front_image"], "https://gayeroticvideoindex.com/images/Covers/1/video1.jpg")
+        self.assertEqual(group["back_image"], "https://gayeroticvideoindex.com/images/Covers/1/video1b.jpg")
+
+    def test_no_covers_gives_no_image(self):
+        self.assertNotIn("image", scrape_scene(movie_page()))
+        self.assertNotIn("front_image", scrape_group(movie_page()))
 
 
 if __name__ == "__main__":
