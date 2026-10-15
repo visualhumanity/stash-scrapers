@@ -75,19 +75,60 @@ def awards_box(awards):
     )
 
 
-def movie_page(cast=(), description=(), scenes=None, awards=()):
+def release_table(released, length):
+    return (
+        '<table class="w-fit"><tr class="text-yellow-100"><th>Distributor</th><th>Released</th><th>Length</th></tr>'
+        f'<tr><td><a href="company/7">Example Studio</a> </td><td>{released}</td><td>{length}</td></tr></table>'
+    )
+
+
+def movie_page(cast=(), description=(), scenes=None, awards=(), released="2001", length="90"):
     return (
         "<html><body>"
-        '<h1 class="text-yellow-300">This website requires that JavaScript be enabled</h1>'
+        '<div id="jsrequired"><h1 class="text-center text-3xl text-yellow-300">'
+        "This website requires that JavaScript be enabled in order to display\n properly.</h1></div>"
+        '<section id="warning"><h1 class="text-2xl font-bold text-yellow-300">Site Name</h1></section>'
+        '<h2 class="text-center text-2xl uppercase md:block md:text-3xl">Site Heading</h2>'
         '<div id="coverContainer"><a href="performer/99">Cover Caption Name</a></div>'
         '<section id="data"><section>'
-        '<h1 class="text-yellow-300 md:text-3xl">Example Movie</h1>'
+        '<h1 class="text-center text-2xl text-yellow-300 md:text-start md:text-3xl">\n  Example Movie  </h1>'
+        + release_table(released, length)
         + (cast_box(cast) if cast else "")
         + (description_box(description) if description else "")
         + (scenes_box(scenes) if scenes is not None else "")
         + (awards_box(awards) if awards else "")
         + "</section></section></body></html>"
     )
+
+
+def performer_page(name="Performer A", image=None, stats=(), tattoos=None):
+    """stats: (label, value-HTML) pairs; tattoos: (locations, [(place, description)])."""
+    rows = "".join(
+        f'<div class="flex items-start space-x-1"><div class="text-yellow-100 whitespace-nowrap">{label}</div>'
+        f"<div class='whitespace-nowrap'>{value}</div></div>"
+        for label, value in stats
+    )
+    tattoo_html = ""
+    if tattoos:
+        locations, details = tattoos
+        notes = "".join(f"<b>{place}:</b> {text}<br/>" for place, text in details)
+        tattoo_html = (
+            '<div><span class="text-yellow-100">Tattoos:&nbsp;</span>'
+            f"\n   {locations}<br />" + (f'<span style="">{notes}</span>' if notes else "") + " </div>"
+        )
+    return (
+        "<html><body>"
+        '<div id="jsrequired"><h1 class="text-center text-3xl text-yellow-300">JavaScript notice</h1></div>'
+        f'<h1 class="text-3xl text-yellow-200">{name}</h1>'
+        + (f"<img src='{image}' />" if image else "")
+        + f'<div class="border border-gray-400 px-2"><div class="columns-2">{rows}</div>{tattoo_html}</div>'
+        "</body></html>"
+    )
+
+
+def scrape_performer(html):
+    with fake_get(html):
+        return GEVI.performer_from_url("https://gayeroticvideoindex.com/performer/1")
 
 
 def fake_get(html):
@@ -143,7 +184,7 @@ class SceneBlockTests(unittest.TestCase):
             scrape_scene(page)["details"],
             "Movie text.\n\n---\n\n"
             "**1️⃣ Scene 1: Example Scene Title**\n\nScene one text.\n\n---\n\n"
-            "**2️⃣ Scene 2: 21m 1/2/2001**\n\nScene two text.",
+            "**2️⃣ Scene 2**\n\nScene two text.",
         )
 
     def test_without_a_description_the_scenes_come_first(self):
@@ -292,16 +333,26 @@ class ReviewFollowUpTests(unittest.TestCase):
             awards=[("2001 Example Award", "Best Example Video")],
         )
 
-    def test_group_differs_from_scene_only_by_the_cast_prefix(self):
-        page = self.full_page()
-        details = scrape_scene(page)["details"]
-        self.assertEqual(scrape_group(page)["synopsis"], "👤 Performer A, Performer B\n\n" + details)
+    def test_scene_details_include_the_scene_text(self):
         self.assertEqual(
-            details,
+            scrape_scene(self.full_page())["details"],
             "Movie text.\n\n---\n\n**1️⃣ Scene 1: Title**\n\n👤 Performer A ⬆️, Performer B ⬇️\n\n"
             "Scene text.\n\nSee also: [Other Example Movie](https://gayeroticvideoindex.com/video/2)\n\n"
             "---\n\n🏆 2001 Example Award: Best Example Video",
         )
+
+    def test_group_synopsis_leaves_out_the_scene_text(self):
+        self.assertEqual(
+            scrape_group(self.full_page())["synopsis"],
+            "👤 Performer A, Performer B\n\nMovie text.\n\n---\n\n"
+            "**1️⃣ Scene 1: Title**\n\n👤 Performer A ⬆️, Performer B ⬇️\n\n"
+            "See also: [Other Example Movie](https://gayeroticvideoindex.com/video/2)\n\n"
+            "---\n\n🏆 2001 Example Award: Best Example Video",
+        )
+
+    def test_group_keeps_a_text_only_scene_over_its_empty_duplicate(self):
+        page = movie_page(scenes=[scene("Scene 1:"), scene("Scene 1:", text=["Scene text."])])
+        self.assertEqual(scrape_group(page)["synopsis"], "**1️⃣ Scene 1**")
 
     def test_asterisk_rule_lines_are_escaped(self):
         self.assertEqual(scrape_scene(movie_page(description=["***", "* * *"]))["details"], "\\***\n\n\\* * *")
@@ -317,6 +368,128 @@ class ReviewFollowUpTests(unittest.TestCase):
     def test_unnumbered_entries_do_not_dedupe_each_other(self):
         page = movie_page(scenes=[scene("Bonus:", "Extra"), scene("Trailer:")])
         self.assertEqual(scrape_scene(page)["details"], "**Bonus: Extra**\n\n---\n\n**Trailer:**")
+
+
+class TitleTests(unittest.TestCase):
+    def test_scene_title_skips_the_hidden_banners(self):
+        self.assertEqual(scrape_scene(movie_page())["title"], "Example Movie")
+
+    def test_group_name_skips_the_hidden_banners(self):
+        self.assertEqual(scrape_group(movie_page())["name"], "Example Movie")
+
+
+class SceneHeaderTests(unittest.TestCase):
+    def heading_for(self, header):
+        return scrape_scene(movie_page(scenes=[scene("Scene 1:", header)]))["details"]
+
+    def test_length_and_date_are_dropped_from_the_title(self):
+        self.assertEqual(self.heading_for("Example Title 18m 1/2/2001"), "**1️⃣ Scene 1: Example Title**")
+
+    def test_length_or_date_alone_is_dropped(self):
+        self.assertEqual(self.heading_for("Example Title 18m"), "**1️⃣ Scene 1: Example Title**")
+        self.assertEqual(self.heading_for("Example Title 12/31/2001"), "**1️⃣ Scene 1: Example Title**")
+
+    def test_header_of_only_length_and_date_leaves_a_bare_heading(self):
+        self.assertEqual(self.heading_for("21m 1/2/2001"), "**1️⃣ Scene 1**")
+
+    def test_circa_years_are_dropped(self):
+        self.assertEqual(self.heading_for("Example Title 18m c2001"), "**1️⃣ Scene 1: Example Title**")
+        self.assertEqual(self.heading_for("Example Title c2001"), "**1️⃣ Scene 1: Example Title**")
+
+    def test_hour_lengths_are_dropped(self):
+        self.assertEqual(self.heading_for("Example Title 1h 5m 1/2/2001"), "**1️⃣ Scene 1: Example Title**")
+
+    def test_numbers_inside_the_title_are_kept(self):
+        self.assertEqual(self.heading_for("Example Title 2 21m"), "**1️⃣ Scene 1: Example Title 2**")
+        self.assertEqual(self.heading_for("Room 18m Down"), "**1️⃣ Scene 1: Room 18m Down**")
+
+    def test_scene_with_only_length_and_date_still_counts_as_filled(self):
+        page = movie_page(scenes=[scene("Scene 1:"), scene("Scene 1:", "21m 1/2/2001")])
+        self.assertEqual(scrape_scene(page)["details"], "**1️⃣ Scene 1**")
+
+
+class ReleaseTableTests(unittest.TestCase):
+    def test_group_gets_studio_date_and_duration(self):
+        group = scrape_group(movie_page(released="2001", length="103"))
+        self.assertEqual(group["studio"]["name"], "Example Studio")
+        self.assertEqual(group["date"], "2001")
+        self.assertEqual(group["duration"], "103:00")
+
+    def test_unknown_length_gives_no_duration(self):
+        self.assertNotIn("duration", scrape_group(movie_page(length="?")))
+        self.assertNotIn("duration", scrape_group(movie_page(length="")))
+
+    def test_circa_release_date_is_omitted(self):
+        self.assertNotIn("date", scrape_group(movie_page(released="c2001")))
+        self.assertNotIn("date", scrape_scene(movie_page(released="c2001")))
+
+    def test_scene_gets_the_release_date(self):
+        self.assertEqual(scrape_scene(movie_page(released="2001"))["date"], "2001")
+
+
+class PerformerTests(unittest.TestCase):
+    def test_disambiguation_is_split_off_the_name(self):
+        performer = scrape_performer(performer_page(name="Performer A (xx)"))
+        self.assertEqual((performer["name"], performer["disambiguation"]), ("Performer A", "xx"))
+
+    def test_plain_name_has_no_disambiguation(self):
+        performer = scrape_performer(performer_page(name="Performer A"))
+        self.assertEqual(performer["name"], "Performer A")
+        self.assertNotIn("disambiguation", performer)
+
+    def test_image_is_made_absolute(self):
+        performer = scrape_performer(performer_page(image="images/Stars/performer1.jpg"))
+        self.assertEqual(performer["image"], "https://gayeroticvideoindex.com/images/Stars/performer1.jpg")
+
+    def test_no_photo_gives_no_image(self):
+        self.assertNotIn("image", scrape_performer(performer_page()))
+
+    def test_piercings(self):
+        self.assertEqual(scrape_performer(performer_page(stats=[("Piercing:", "Ear")]))["piercings"], "Ear")
+        self.assertEqual(
+            scrape_performer(performer_page(stats=[("Piercing:", "Ear<br/>Nipple")]))["piercings"], "Ear, Nipple"
+        )
+
+    def test_tattoo_locations(self):
+        performer = scrape_performer(performer_page(tattoos=("Wrist, Back", [])))
+        self.assertEqual(performer["tattoos"], "Wrist, Back")
+
+    def test_tattoo_locations_with_descriptions(self):
+        performer = scrape_performer(performer_page(
+            tattoos=("Wrist, Back", [("left wrist", "example star"), ("back", "example text")])
+        ))
+        self.assertEqual(performer["tattoos"], "Wrist, Back\nleft wrist: example star\nback: example text")
+
+    def test_no_tattoos(self):
+        self.assertNotIn("tattoos", scrape_performer(performer_page()))
+
+    def test_born_and_died_years(self):
+        performer = scrape_performer(performer_page(stats=[("Born:", "1981"), ("Died:", "2023")]))
+        self.assertEqual((performer["birthdate"], performer["death_date"]), ("1981", "2023"))
+
+    def test_circa_born_and_died_are_omitted(self):
+        performer = scrape_performer(performer_page(stats=[("Born:", "c1984"), ("Died:", "c2020")]))
+        self.assertNotIn("birthdate", performer)
+        self.assertNotIn("death_date", performer)
+
+
+class NoneValueTests(unittest.TestCase):
+    def test_none_is_dropped_from_piercings(self):
+        performer = scrape_performer(performer_page(stats=[("Piercing:", "None<br/>Nose")]))
+        self.assertEqual(performer["piercings"], "Nose")
+
+    def test_empty_piercing_value_gives_no_piercings(self):
+        self.assertNotIn("piercings", scrape_performer(performer_page(stats=[("Piercing:", "")])))
+
+    def test_only_none_gives_no_piercings(self):
+        self.assertNotIn("piercings", scrape_performer(performer_page(stats=[("Piercing:", "None")])))
+
+    def test_none_is_dropped_from_tattoo_locations(self):
+        performer = scrape_performer(performer_page(tattoos=("None, Forearm", [("left forearm", "example word")])))
+        self.assertEqual(performer["tattoos"], "Forearm\nleft forearm: example word")
+
+    def test_only_none_gives_no_tattoos(self):
+        self.assertNotIn("tattoos", scrape_performer(performer_page(tattoos=("None", []))))
 
 
 if __name__ == "__main__":

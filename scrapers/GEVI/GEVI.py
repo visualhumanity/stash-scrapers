@@ -153,15 +153,25 @@ def scene_cast(row):
     return cast
 
 
-def scene_block(scene):
-    """(scene number or None, whether it has content, Markdown block) for one scenes-list entry."""
+# Trailing "<length> <date>" that GEVI appends to a scene header, either part optional:
+# "Example Title 18m 1/2/2001", "21m 1/2/2001", "Example Title 1h 5m", "Example Title c2001".
+_SCENE_DATE = r"(?:\d{1,2}/\d{1,2}/\d{4}|c\d{4})"
+SCENE_LENGTH_DATE = re.compile(
+    rf"(?:^|\s+)(?:(?:\d+h(?:\s*\d+m)?|\d+m)(?:\s+{_SCENE_DATE})?|{_SCENE_DATE})$"
+)
+
+
+def scene_block(scene, include_text=True):
+    """(scene number or None, whether it has content, Markdown block) for one scenes-list entry.
+    The scene text counts as content even when include_text leaves it out of the block."""
     rows = scene.find_all("div", recursive=False)
     head = rows[0] if rows else None
     label_el = head.find("span") if head else None
     label = collapse(label_el.get_text()) if label_el else ""
-    header = collapse("".join(
+    raw_header = collapse("".join(
         node_text(child) for child in head.children if child is not label_el
     )) if head else ""
+    header = SCENE_LENGTH_DATE.sub("", raw_header)
 
     cast_row = next(
         (row for row in rows[1:] if row.find("a", href=re.compile(r"^performer/"), recursive=False)),
@@ -189,18 +199,18 @@ def scene_block(scene):
     parts = [f"**{heading}**"] if heading else []
     if cast:
         parts.append("👤 " + ", ".join(name + role_marker(code) for name, code in cast))
-    if text:
+    if text and include_text:
         parts.append(text)
     if see_also:
         parts.append("See also: " + ", ".join(see_also))
-    has_content = bool(header or cast or text or see_also)
+    has_content = bool(raw_header or cast or text or see_also)
     return number, has_content, "\n\n".join(parts)
 
 
-def scene_blocks(soup):
+def scene_blocks(soup, include_text=True):
     """Markdown blocks for the scenes list. An empty entry stays as a placeholder
     heading unless another entry with the same number has content."""
-    scenes = [scene_block(scene) for scene in soup.select("#scenes div.scene")]
+    scenes = [scene_block(scene, include_text) for scene in soup.select("#scenes div.scene")]
     filled = {number for number, has_content, _ in scenes if has_content and number is not None}
     return [
         block for number, has_content, block in scenes
@@ -221,27 +231,86 @@ def awards(soup):
     return lines
 
 
-def build_description(soup, lead=None):
-    """Markdown description of a movie page; lead is an optional first section."""
+def build_description(soup, lead=None, scene_text=True):
+    """Markdown description of a movie page; lead is an optional first section,
+    scene_text whether scene blocks carry each scene's description."""
     head = [lead] if lead else []
     desc_div = soup.find("div", class_="wideCols-1")
     if desc_div and (text := paragraphs(desc_div)):
         head.append(text)
     sections = ["\n\n".join(head)] if head else []
-    sections += scene_blocks(soup)
+    sections += scene_blocks(soup, scene_text)
     if award_lines := awards(soup):
         sections.append("\n\n".join(award_lines))
     return "\n\n---\n\n".join(sections) or None
 
 
-def get_stat(stats_container, label):
+def exact_date(text):
+    """A GEVI date, or None for an empty or circa ("c2001") value."""
+    text = (text or "").strip()
+    return text if text and not text.lower().startswith("c") else None
+
+
+def release_info(soup):
+    """{column header: cell} for the movie's Distributor / Released / Length table."""
+    table = soup.find("table", class_="w-fit")
+    rows = table.find_all("tr") if table else []
+    if len(rows) < 2:
+        return {}
+    headers = [collapse(th.get_text()) for th in rows[0].find_all(["th", "td"])]
+    return dict(zip(headers, rows[1].find_all("td")))
+
+
+def movie_title(soup):
+    """The movie's title heading. Earlier h1s on the page are hidden banners
+    (the JavaScript notice and the age warning)."""
+    title = soup.find("h1", class_="md:text-3xl")
+    return collapse(title.get_text()) if title else None
+
+
+def get_stat_values(stats_container, label):
+    """All lines of a stat's value (GEVI separates multiple values with <br>)."""
     for flex_div in stats_container.find_all("div", class_="flex"):
         label_el = flex_div.find("div", class_="text-yellow-100")
         if label_el and label_el.get_text(strip=True) == label:
             value_el = label_el.find_next_sibling("div")
             if value_el:
-                return value_el.get_text(separator="\n", strip=True).split("\n")[0]
-    return None
+                return value_el.get_text(separator="\n", strip=True).split("\n")
+    return []
+
+
+def get_stat(stats_container, label):
+    values = get_stat_values(stats_container, label)
+    return values[0] if values else None
+
+
+def tattoos(soup):
+    """Tattoo locations, then one line per described tattoo:
+    "Tattoos: <locations><br><span><b>place:</b> description<br>...</span>"."""
+    label = soup.find("span", string=re.compile(r"^\s*Tattoos:"))
+    if not label:
+        return None
+    parts = []
+
+    def walk(node):
+        for child in node.children:
+            if child is label or isinstance(child, Comment):
+                continue
+            if isinstance(child, Tag):
+                if child.name == "br":
+                    parts.append("\n")
+                else:
+                    walk(child)
+            else:
+                parts.append(str(child))
+
+    walk(label.parent)
+    lines = [collapse(line) for line in "".join(parts).split("\n")]
+    lines = [line for line in lines if line]
+    if lines:
+        # GEVI keeps "None" next to tattoos added later ("None, Forearm")
+        lines[0] = ", ".join(place for place in lines[0].split(", ") if place.lower() != "none")
+    return "\n".join(line for line in lines if line) or None
 
 
 def performer_from_url(url):
@@ -257,7 +326,17 @@ def performer_from_url(url):
 
     name_el = soup.find("h1", class_="text-yellow-200")
     if name_el:
-        result["name"] = name_el.get_text(strip=True)
+        name = collapse(name_el.get_text())
+        match = re.fullmatch(r"(.*?)\s*\(([^)]*)\)", name)
+        if match and match.group(1):
+            result["name"], result["disambiguation"] = match.group(1), match.group(2)
+        else:
+            result["name"] = name
+
+    image = soup.find("img", src=re.compile(r"Stars"))
+    if image:
+        src = image["src"]
+        result["image"] = src if src.startswith("http") else f"{BASE_URL}/{src.lstrip('/')}"
 
     aliases = []
     for label_text, tag in (("Also known as", "h2"), ("Also modeled as", "h3")):
@@ -307,9 +386,19 @@ def performer_from_url(url):
         if foreskin_raw:
             result["circumcised"] = CIRCUMCISED_MAP.get(foreskin_raw.lower(), foreskin_raw.upper())
 
-        born_raw = get_stat(stats, "Born:")
-        if born_raw:
-            result["birthdate"] = born_raw.strip()
+        piercings = [p for p in get_stat_values(stats, "Piercing:") if p and p.lower() != "none"]
+        if piercings:
+            result["piercings"] = ", ".join(piercings)
+
+        # GEVI only records years; "c1984" is a guess, so it is left out
+        for label, field in (("Born:", "birthdate"), ("Died:", "death_date")):
+            year = exact_date(get_stat(stats, label))
+            if year:
+                result[field] = year[-4:]
+
+        tattoo_text = tattoos(stats)
+        if tattoo_text:
+            result["tattoos"] = tattoo_text
 
     result["gender"] = "MALE"
     result["urls"] = [url]
@@ -328,26 +417,20 @@ def group_from_url(url):
     soup = BeautifulSoup(resp.text, "html.parser")
     result = {}
 
-    name_el = soup.find("h1", class_="text-yellow-300")
-    if name_el:
-        result["name"] = name_el.get_text(strip=True)
+    if title := movie_title(soup):
+        result["name"] = title
 
-    table = soup.find("table", class_="w-fit")
-    if table:
-        rows = table.find_all("tr")
-        if len(rows) >= 2:
-            cells = rows[1].find_all("td")
-            if cells:
-                studio_a = cells[0].find("a")
-                if studio_a:
-                    href = studio_a.get("href", "")
-                    result["studio"] = {"name": studio_a.get_text(strip=True)}
-                    if href:
-                        result["studio"]["urls"] = [f"{BASE_URL}/{href}"]
-            if len(cells) >= 2:
-                date_text = cells[1].get_text(strip=True)
-                if date_text:
-                    result["date"] = date_text
+    release = release_info(soup)
+    studio_a = release["Distributor"].find("a") if "Distributor" in release else None
+    if studio_a:
+        href = studio_a.get("href", "")
+        result["studio"] = {"name": studio_a.get_text(strip=True)}
+        if href:
+            result["studio"]["urls"] = [f"{BASE_URL}/{href}"]
+    if "Released" in release and (date := exact_date(release["Released"].get_text())):
+        result["date"] = date
+    if "Length" in release and (minutes := release["Length"].get_text(strip=True)).isdigit():
+        result["duration"] = f"{minutes}:00"
 
     dir_label = soup.find("div", class_="text-yellow-200", string=re.compile(r"Director"))
     if dir_label:
@@ -358,7 +441,7 @@ def group_from_url(url):
                 result["director"] = ", ".join(names)
 
     cast = [name for name, _ in movie_cast_links(soup)]
-    description = build_description(soup, lead="👤 " + ", ".join(cast) if cast else None)
+    description = build_description(soup, lead="👤 " + ", ".join(cast) if cast else None, scene_text=False)
     if description:
         result["synopsis"] = description
 
@@ -385,19 +468,12 @@ def scene_from_url(url):
     soup = BeautifulSoup(resp.text, "html.parser")
     result = {}
 
-    name_el = soup.find("h1", class_="text-yellow-300")
-    if name_el:
-        result["title"] = name_el.get_text(strip=True)
+    if title := movie_title(soup):
+        result["title"] = title
 
-    table = soup.find("table", class_="w-fit")
-    if table:
-        rows = table.find_all("tr")
-        if len(rows) >= 2:
-            cells = rows[1].find_all("td")
-            if len(cells) >= 2:
-                date_text = cells[1].get_text(strip=True)
-                if date_text:
-                    result["date"] = date_text
+    release = release_info(soup)
+    if "Released" in release and (date := exact_date(release["Released"].get_text())):
+        result["date"] = date
 
     dir_label = soup.find("div", class_="text-yellow-200", string=re.compile(r"Director"))
     if dir_label:
