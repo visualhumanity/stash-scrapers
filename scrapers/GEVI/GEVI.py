@@ -261,6 +261,13 @@ def release_info(soup):
     return dict(zip(headers, rows[1].find_all("td")))
 
 
+def cover_images(soup):
+    """Full-size cover URLs (front, then back). The thumbnails link to them in their image attribute."""
+    cover_div = soup.find("div", id="coverContainer")
+    imgs = cover_div.find_all("img", class_="pictureIcon") if cover_div else []
+    return [f"{BASE_URL}/{img['image']}" for img in imgs if img.get("image")]
+
+
 def movie_title(soup):
     """The movie's title heading. Earlier h1s on the page are hidden banners
     (the JavaScript notice and the age warning)."""
@@ -445,13 +452,11 @@ def group_from_url(url):
     if description:
         result["synopsis"] = description
 
-    cover_div = soup.find("div", id="coverContainer")
-    if cover_div:
-        imgs = [img for img in cover_div.find_all("img", class_="pictureIcon") if img.get("image")]
-        if imgs:
-            result["front_image"] = f"{BASE_URL}/{imgs[0]['image']}"
-        if len(imgs) >= 2:
-            result["back_image"] = f"{BASE_URL}/{imgs[1]['image']}"
+    covers = cover_images(soup)
+    if covers:
+        result["front_image"] = covers[0]
+    if len(covers) >= 2:
+        result["back_image"] = covers[1]
 
     result["urls"] = [url]
     return result
@@ -491,6 +496,10 @@ def scene_from_url(url):
 
     if performers:
         result["performers"] = performers
+
+    covers = cover_images(soup)
+    if covers:
+        result["image"] = covers[0]
 
     result["urls"] = [url]
     return result
