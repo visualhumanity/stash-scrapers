@@ -234,6 +234,13 @@ def build_description(soup, lead=None):
     return "\n\n---\n\n".join(sections) or None
 
 
+def movie_title(soup):
+    """The movie's title heading. Earlier h1s on the page are hidden banners
+    (the JavaScript notice and the age warning)."""
+    title = soup.find("h1", class_="md:text-3xl")
+    return collapse(title.get_text()) if title else None
+
+
 def get_stat(stats_container, label):
     for flex_div in stats_container.find_all("div", class_="flex"):
         label_el = flex_div.find("div", class_="text-yellow-100")
@@ -328,9 +335,8 @@ def group_from_url(url):
     soup = BeautifulSoup(resp.text, "html.parser")
     result = {}
 
-    name_el = soup.find("h1", class_="text-yellow-300")
-    if name_el:
-        result["name"] = name_el.get_text(strip=True)
+    if title := movie_title(soup):
+        result["name"] = title
 
     table = soup.find("table", class_="w-fit")
     if table:
@@ -385,9 +391,8 @@ def scene_from_url(url):
     soup = BeautifulSoup(resp.text, "html.parser")
     result = {}
 
-    name_el = soup.find("h1", class_="text-yellow-300")
-    if name_el:
-        result["title"] = name_el.get_text(strip=True)
+    if title := movie_title(soup):
+        result["title"] = title
 
     table = soup.find("table", class_="w-fit")
     if table:

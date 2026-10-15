@@ -78,10 +78,13 @@ def awards_box(awards):
 def movie_page(cast=(), description=(), scenes=None, awards=()):
     return (
         "<html><body>"
-        '<h1 class="text-yellow-300">This website requires that JavaScript be enabled</h1>'
+        '<div id="jsrequired"><h1 class="text-center text-3xl text-yellow-300">'
+        "This website requires that JavaScript be enabled in order to display\n properly.</h1></div>"
+        '<section id="warning"><h1 class="text-2xl font-bold text-yellow-300">Site Name</h1></section>'
+        '<h2 class="text-center text-2xl uppercase md:block md:text-3xl">Site Heading</h2>'
         '<div id="coverContainer"><a href="performer/99">Cover Caption Name</a></div>'
         '<section id="data"><section>'
-        '<h1 class="text-yellow-300 md:text-3xl">Example Movie</h1>'
+        '<h1 class="text-center text-2xl text-yellow-300 md:text-start md:text-3xl">\n  Example Movie  </h1>'
         + (cast_box(cast) if cast else "")
         + (description_box(description) if description else "")
         + (scenes_box(scenes) if scenes is not None else "")
@@ -317,6 +320,14 @@ class ReviewFollowUpTests(unittest.TestCase):
     def test_unnumbered_entries_do_not_dedupe_each_other(self):
         page = movie_page(scenes=[scene("Bonus:", "Extra"), scene("Trailer:")])
         self.assertEqual(scrape_scene(page)["details"], "**Bonus: Extra**\n\n---\n\n**Trailer:**")
+
+
+class TitleTests(unittest.TestCase):
+    def test_scene_title_skips_the_hidden_banners(self):
+        self.assertEqual(scrape_scene(movie_page())["title"], "Example Movie")
+
+    def test_group_name_skips_the_hidden_banners(self):
+        self.assertEqual(scrape_group(movie_page())["name"], "Example Movie")
 
 
 if __name__ == "__main__":
