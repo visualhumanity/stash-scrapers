@@ -478,6 +478,9 @@ class NoneValueTests(unittest.TestCase):
         performer = scrape_performer(performer_page(stats=[("Piercing:", "None<br/>Nose")]))
         self.assertEqual(performer["piercings"], "Nose")
 
+    def test_empty_piercing_value_gives_no_piercings(self):
+        self.assertNotIn("piercings", scrape_performer(performer_page(stats=[("Piercing:", "")])))
+
     def test_only_none_gives_no_piercings(self):
         self.assertNotIn("piercings", scrape_performer(performer_page(stats=[("Piercing:", "None")])))
 

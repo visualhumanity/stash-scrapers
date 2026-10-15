@@ -386,7 +386,7 @@ def performer_from_url(url):
         if foreskin_raw:
             result["circumcised"] = CIRCUMCISED_MAP.get(foreskin_raw.lower(), foreskin_raw.upper())
 
-        piercings = [p for p in get_stat_values(stats, "Piercing:") if p.lower() != "none"]
+        piercings = [p for p in get_stat_values(stats, "Piercing:") if p and p.lower() != "none"]
         if piercings:
             result["piercings"] = ", ".join(piercings)
 
