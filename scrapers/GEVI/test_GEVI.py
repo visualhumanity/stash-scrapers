@@ -146,7 +146,7 @@ class SceneBlockTests(unittest.TestCase):
             scrape_scene(page)["details"],
             "Movie text.\n\n---\n\n"
             "**1️⃣ Scene 1: Example Scene Title**\n\nScene one text.\n\n---\n\n"
-            "**2️⃣ Scene 2: 21m 1/2/2001**\n\nScene two text.",
+            "**2️⃣ Scene 2**\n\nScene two text.",
         )
 
     def test_without_a_description_the_scenes_come_first(self):
@@ -338,6 +338,32 @@ class TitleTests(unittest.TestCase):
 
     def test_group_name_skips_the_hidden_banners(self):
         self.assertEqual(scrape_group(movie_page())["name"], "Example Movie")
+
+
+class SceneHeaderTests(unittest.TestCase):
+    def heading_for(self, header):
+        return scrape_scene(movie_page(scenes=[scene("Scene 1:", header)]))["details"]
+
+    def test_length_and_date_are_dropped_from_the_title(self):
+        self.assertEqual(self.heading_for("Example Title 18m 1/2/2001"), "**1️⃣ Scene 1: Example Title**")
+
+    def test_length_or_date_alone_is_dropped(self):
+        self.assertEqual(self.heading_for("Example Title 18m"), "**1️⃣ Scene 1: Example Title**")
+        self.assertEqual(self.heading_for("Example Title 12/31/2001"), "**1️⃣ Scene 1: Example Title**")
+
+    def test_header_of_only_length_and_date_leaves_a_bare_heading(self):
+        self.assertEqual(self.heading_for("21m 1/2/2001"), "**1️⃣ Scene 1**")
+
+    def test_hour_lengths_are_dropped(self):
+        self.assertEqual(self.heading_for("Example Title 1h 5m 1/2/2001"), "**1️⃣ Scene 1: Example Title**")
+
+    def test_numbers_inside_the_title_are_kept(self):
+        self.assertEqual(self.heading_for("Example Title 2 21m"), "**1️⃣ Scene 1: Example Title 2**")
+        self.assertEqual(self.heading_for("Room 18m Down"), "**1️⃣ Scene 1: Room 18m Down**")
+
+    def test_scene_with_only_length_and_date_still_counts_as_filled(self):
+        page = movie_page(scenes=[scene("Scene 1:"), scene("Scene 1:", "21m 1/2/2001")])
+        self.assertEqual(scrape_scene(page)["details"], "**1️⃣ Scene 1**")
 
 
 if __name__ == "__main__":

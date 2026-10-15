@@ -153,6 +153,13 @@ def scene_cast(row):
     return cast
 
 
+# Trailing "<length> <date>" that GEVI appends to a scene header, either part optional:
+# "Example Title 18m 1/2/2001", "21m 1/2/2001", "Example Title 1h 5m".
+SCENE_LENGTH_DATE = re.compile(
+    r"(?:^|\s+)(?:(?:\d+h(?:\s*\d+m)?|\d+m)(?:\s+\d{1,2}/\d{1,2}/\d{4})?|\d{1,2}/\d{1,2}/\d{4})$"
+)
+
+
 def scene_block(scene, include_text=True):
     """(scene number or None, whether it has content, Markdown block) for one scenes-list entry.
     The scene text counts as content even when include_text leaves it out of the block."""
@@ -160,9 +167,10 @@ def scene_block(scene, include_text=True):
     head = rows[0] if rows else None
     label_el = head.find("span") if head else None
     label = collapse(label_el.get_text()) if label_el else ""
-    header = collapse("".join(
+    raw_header = collapse("".join(
         node_text(child) for child in head.children if child is not label_el
     )) if head else ""
+    header = SCENE_LENGTH_DATE.sub("", raw_header)
 
     cast_row = next(
         (row for row in rows[1:] if row.find("a", href=re.compile(r"^performer/"), recursive=False)),
@@ -194,7 +202,7 @@ def scene_block(scene, include_text=True):
         parts.append(text)
     if see_also:
         parts.append("See also: " + ", ".join(see_also))
-    has_content = bool(header or cast or text or see_also)
+    has_content = bool(raw_header or cast or text or see_also)
     return number, has_content, "\n\n".join(parts)
 
 
