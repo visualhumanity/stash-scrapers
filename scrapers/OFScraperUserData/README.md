@@ -37,7 +37,7 @@ This scraper depends on the **VH - Convert HTML to Markdown** scraper (installed
 <download root>/.data/<username>_<account id>/user_data.db
 ```
 
-The media ID is read from the end of the file name (`... [<original name>_<media id>].<ext>`). A folder without `(username)` is used as both performer and studio.
+The media ID is read from the end of the file name (`... [<original name>_<media id>].<ext>`). When the name has no media ID, or the ID is not in the database, the file is matched on the `filename` and the end of the `directory` OF-Scraper stored for it (`<model folder>/<type>/<media>`). Only that end is compared, because OF-Scraper and Stash usually mount the download root at different paths. A folder without `(username)` is used as both performer and studio.
 
 ## Mentions
 
@@ -45,15 +45,11 @@ The media ID is read from the end of the file name (`... [<original name>_<media
 
 ## Database discovery
 
-The database named after the folder's username is tried first. If it does not hold the media ID, every `.data/*/user_data.db` is scanned, and a hit is remembered in `cache_db_location.json` (next to the script, git-ignored) so the scan happens once per folder. Misses are never cached and stale entries are discarded.
+The database named after the folder's username is tried first. If it does not hold the file, every `.data/*/user_data.db` is scanned, and a hit is remembered in `cache_db_location.json` (next to the script, git-ignored) so the scan happens once per folder. Misses are never cached and stale entries are discarded.
 
 ## Time zone
 
 Set `TZ` on the Stash container. Without it the scraper falls back to `America/Toronto`.
-
-## Known limitation
-
-OF-Scraper truncates long file names, which can cut off the `_<media id>]` suffix. Those files cannot be matched and return an empty result. Shortening the OF-Scraper `file_format` text length avoids this.
 
 ## Tests
 
