@@ -70,15 +70,15 @@ class Sandbox:
         return path
 
     def add_media(self, db_path, media_id, post_id, api_type, text, created_at,
-                  filename=None, media_type="Videos"):
+                  filename=None, media_type="Videos", directory=None):
         """Insert a media row and its source row; returns the filename."""
         filename = filename or f"2001-02-03 - caption [orig_{media_id}].mp4"
         table = TABLE_FOR[api_type]
         con = sqlite3.connect(db_path)
         con.execute(
-            "INSERT INTO medias (media_id, post_id, filename, api_type, media_type, downloaded) "
-            "VALUES (?, ?, ?, ?, ?, 1)",
-            (media_id, post_id, filename, api_type, media_type),
+            "INSERT INTO medias (media_id, post_id, directory, filename, api_type, media_type, downloaded) "
+            "VALUES (?, ?, ?, ?, ?, ?, 1)",
+            (media_id, post_id, directory, filename, api_type, media_type),
         )
         if table is not None and created_at is not None:
             con.execute(f"INSERT INTO {table} (post_id, text, created_at) VALUES (?, ?, ?)",
@@ -372,6 +372,53 @@ class DiscoveryTests(Base):
                                  api_type="Timeline", text="t", created_at="2001-02-03T12:00:00+00:00")
         self.assertEqual(result["studio"], {"name": "lewisxrowe"})
         self.assertEqual(result["performers"], [{"name": "lewisxrowe"}])
+
+
+class TruncatedFilenameTests(Base):
+    """OF-Scraper can cut the `_<media id>]` suffix off long names; the medias row still has the name."""
+
+    FOLDER = "Example Name (examplestudio)"
+    TRUNCATED = "2001-02-03 - a long caption [abcdefghij_sour.mp4"
+
+    def add(self, filename, directory, media_id=80):
+        db_path = self.box.db("examplestudio")
+        self.box.add_media(db_path, media_id, media_id, "Timeline", "found",
+                           "2001-02-03T12:00:00+00:00", filename=filename, directory=directory)
+
+    def test_truncated_name_matches_on_relative_path(self):
+        self.add(self.TRUNCATED, f"/ofscraper/data/{self.FOLDER}/Posts/Videos")
+        path = self.box.video_path(self.FOLDER, "Timeline", self.TRUNCATED)
+        result = self.box.run(path)[0]
+        self.assertEqual(result["details"], "found")
+        self.assertEqual(result["urls"], ["https://onlyfans.com/80/examplestudio"])
+
+    def test_directory_with_trailing_slash_matches(self):
+        self.add(self.TRUNCATED, f"/elsewhere/{self.FOLDER}/Posts/Videos/")
+        path = self.box.video_path(self.FOLDER, "Timeline", self.TRUNCATED)
+        self.assertEqual(self.box.run(path)[0]["details"], "found")
+
+    def test_same_name_in_another_folder_does_not_match(self):
+        self.add(self.TRUNCATED, f"/ofscraper/data/Other {self.FOLDER}/Posts/Videos")
+        self.add(self.TRUNCATED, f"/ofscraper/data/{self.FOLDER}/Messages/Videos", media_id=81)
+        path = self.box.video_path(self.FOLDER, "Timeline", self.TRUNCATED)
+        self.assertEqual(self.box.run(path)[0], {})
+
+    def test_unknown_media_id_falls_back_to_the_name(self):
+        filename = "2001-02-03 - caption [orig_12345].mp4"
+        self.add(filename, f"/ofscraper/data/{self.FOLDER}/Posts/Videos", media_id=82)
+        path = self.box.video_path(self.FOLDER, "Timeline", filename)
+        self.assertEqual(self.box.run(path)[0]["details"], "found")
+
+    def test_name_match_in_another_database_is_cached(self):
+        self.box.db("examplestudio")
+        other = self.box.db("otheraccount", 2)
+        self.box.add_media(other, 83, 83, "Timeline", "found", "2001-02-03T12:00:00+00:00",
+                           filename=self.TRUNCATED,
+                           directory=f"/ofscraper/data/{self.FOLDER}/Posts/Videos")
+        path = self.box.video_path(self.FOLDER, "Timeline", self.TRUNCATED)
+        self.assertEqual(self.box.run(path)[0]["details"], "found")
+        with open(self.box.cache_path) as f:
+            self.assertEqual(json.load(f), {self.FOLDER: other})
 
 
 if __name__ == "__main__":

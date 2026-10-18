@@ -75,8 +75,13 @@ FROM medias m
 LEFT JOIN posts p ON m.api_type IN ('Timeline','Archived','Pinned','Paid') AND p.post_id = m.post_id
 LEFT JOIN messages ms ON m.api_type IN ('Message','Messages') AND ms.post_id = m.post_id
 LEFT JOIN stories s ON m.api_type IN ('Highlights','Stories') AND s.post_id = m.post_id
-WHERE m.media_id = ?
+WHERE {}
 """
+BY_MEDIA_ID = QUERY.format("m.media_id = :media_id")
+# directory holds OF-Scraper's own absolute path, so only its <model>/<type>/<media> end is compared
+BY_NAME = QUERY.format(
+    "m.filename = :filename AND substr('/' || rtrim(m.directory, '/'), -length(:folder)) = :folder"
+)
 
 
 def local_zone():
@@ -91,16 +96,20 @@ def to_local_date(created_at):
 
 
 def split_path(path):
-    """Return (download_root, model_folder, display_name, username) for <root>/<model>/<type>/<media>/<file>."""
+    """Return (download_root, relative_path, display_name, username) for <root>/<model>/<type>/<media>/<file>.
+
+    relative_path is the list [model, type, media, file].
+    """
     parts = os.path.normpath(path).split(os.sep)
     if len(parts) < 5 or not parts[-4]:
         return None
     root = os.sep.join(parts[:-4]) or os.sep
-    folder = parts[-4]
+    relative = parts[-4:]
+    folder = relative[0]
     match = MODEL_FOLDER.match(folder)
     if match:
-        return root, folder, match["name"], match["username"]
-    return root, folder, folder, folder
+        return root, relative, match["name"], match["username"]
+    return root, relative, folder, folder
 
 
 def media_id_from(filename):
@@ -112,12 +121,17 @@ def db_paths(root):
     return sorted(glob.glob(os.path.join(glob.escape(root), ".data", "*", "user_data.db")))
 
 
-def lookup(db_path, media_id):
+def lookup(db_path, media_id, relative):
+    """Find the row by media ID, else by file name plus the end of its directory."""
     uri = "file:" + quote(db_path) + "?mode=ro"
     try:
         con = sqlite3.connect(uri, uri=True)
         try:
-            return con.execute(QUERY, (media_id,)).fetchone()
+            row = None
+            if media_id is not None:
+                row = con.execute(BY_MEDIA_ID, {"media_id": media_id}).fetchone()
+            folder = "/" + "/".join(relative[:-1])
+            return row or con.execute(BY_NAME, {"filename": relative[-1], "folder": folder}).fetchone()
         finally:
             con.close()
     except sqlite3.Error as exc:
@@ -144,7 +158,8 @@ def write_cache(cache):
         log.warning(f"Could not write cache: {exc}")
 
 
-def find_row(root, folder, username, media_id):
+def find_row(root, relative, username, media_id):
+    folder = relative[0]
     cache = read_cache()
     cached = cache.get(folder)
     if cached is not None and not os.path.isfile(cached):
@@ -152,20 +167,20 @@ def find_row(root, folder, username, media_id):
         write_cache(cache)
         cached = None
     if cached:
-        row = lookup(cached, media_id)
+        row = lookup(cached, media_id, relative)
         if row:
             return row
 
     derived = [p for p in db_paths(root) if os.path.basename(os.path.dirname(p)).startswith(username + "_")]
     for path in derived:
-        row = lookup(path, media_id)
+        row = lookup(path, media_id, relative)
         if row:
             return row
 
     for path in db_paths(root):
         if path in derived or path == cached:
             continue
-        row = lookup(path, media_id)
+        row = lookup(path, media_id, relative)
         if row:
             cache[folder] = path
             write_cache(cache)
@@ -287,11 +302,10 @@ def scrape(fragment):
         return {}
     path = files[0]["path"]
     located = split_path(path)
-    media_id = media_id_from(os.path.basename(path))
-    if not located or media_id is None:
+    if not located:
         return {}
-    root, folder, name, username = located
-    row = find_row(root, folder, username, media_id)
+    root, relative, name, username = located
+    row = find_row(root, relative, username, media_id_from(relative[-1]))
     if not row:
         return {}
     post_id, created_at, text, is_post = row
