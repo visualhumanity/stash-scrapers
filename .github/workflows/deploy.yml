@@ -24,11 +24,17 @@ on:
 permissions:
   contents: read
 
-# Publishing runs one at a time, so a slower older run can't deploy over a newer one.
-# PR runs never deploy and get their own group.
+# Publishing runs (pushes and manual runs on main or develop) go one at a time, in order,
+# so a slower older run can't deploy over a newer one. queue: max keeps every waiting run
+# instead of cancelling all but the newest. Runs that can't deploy (PRs, manual runs on
+# other branches) get their own group.
 concurrency:
-  group: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.run_id) || 'pages' }}
+  group: >-
+    ${{ github.event_name != 'pull_request'
+    && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    && 'pages' || format('nopublish-{0}', github.run_id) }}
   cancel-in-progress: false
+  queue: max
 
 jobs:
   build:

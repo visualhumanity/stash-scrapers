@@ -59,7 +59,8 @@ sceneByFragment:               # action exposed in the Stash Identify task
 - **Triggers:** PRs into `main` or `develop`, pushes to those branches, and manual runs. PRs and pushes only start the workflow when they touch `scrapers/**`, `build_site.sh` or `.github/workflows/**`.
 - **PRs:** `build` runs against the PR's feature branch (its head commit). Nothing is deployed.
 - **Pushes and manual runs:** `build` checks out both `main` and `develop` and builds them into `_site/main` and `_site/develop`, then `deploy` publishes both. A Pages artifact deploy replaces the whole site, so both branches are always rebuilt together.
-- **Deploy:** runs only from `main` or `develop`. The `github-pages` environment allows deploys from those two branches only. Publishing runs queue one at a time.
+- **Deploy:** runs only from `main` or `develop`. The `github-pages` environment allows deploys from those two branches only.
+- **Queueing:** pushes and manual runs on `main` or `develop` share one concurrency group with `queue: max`, so they run one at a time in order and waiting runs are not cancelled. PR runs and manual runs on other branches never wait on it.
 
 Version shown in the index: the git short hash of the last commit that touched the scraper directory.
 
