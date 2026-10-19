@@ -1,0 +1,10 @@
+name: VH - Title From Performers
+# requires: py_common
+# ignore: test_vhTitleFromPerformers.py README.md
+
+sceneByFragment:
+  action: script
+  script:
+    - python
+    - vhTitleFromPerformers.py
+# Last Updated 2026-10-19
