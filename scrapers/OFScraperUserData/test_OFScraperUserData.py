@@ -368,10 +368,10 @@ class DiscoveryTests(Base):
         self.assertEqual(result["details"], "t")
 
     def test_folder_without_username_uses_name(self):
-        result = self.box.scrape("lewisxrowe", "lewisxrowe", media_id=95, post_id=95,
+        result = self.box.scrape("examplefolder", "examplefolder", media_id=95, post_id=95,
                                  api_type="Timeline", text="t", created_at="2001-02-03T12:00:00+00:00")
-        self.assertEqual(result["studio"], {"name": "lewisxrowe"})
-        self.assertEqual(result["performers"], [{"name": "lewisxrowe"}])
+        self.assertEqual(result["studio"], {"name": "examplefolder"})
+        self.assertEqual(result["performers"], [{"name": "examplefolder"}])
 
 
 class TruncatedFilenameTests(Base):
@@ -419,6 +419,73 @@ class TruncatedFilenameTests(Base):
         self.assertEqual(self.box.run(path)[0]["details"], "found")
         with open(self.box.cache_path) as f:
             self.assertEqual(json.load(f), {self.FOLDER: other})
+
+
+class MediaIdFilenameTests(Base):
+    """`{date}_{post_id}_{original_filename}_{media_id}.{ext}` names are matched by media ID.
+
+    The stored filename differs from the file on disk, so only a media ID lookup can succeed.
+    """
+
+    FOLDER = "Example Name (examplestudio)"
+
+    def scrape(self, filename, media_id, post_id=900, text="found"):
+        db_path = self.box.db("examplestudio")
+        self.box.add_media(db_path, media_id, post_id, "Timeline", text, "2001-02-03T12:00:00+00:00",
+                           filename="stored under another name.mp4",
+                           directory=f"/ofscraper/data/{self.FOLDER}/Posts/Videos")
+        path = self.box.video_path(self.FOLDER, "Timeline", filename)
+        return self.box.run(path)[0]
+
+    def test_video_name_with_quality_suffix_matches_by_media_id(self):
+        result = self.scrape("2001-02-03_900_0a1b2c3d4e5f6g7h8i9j0_source_9000000001.mp4", 9000000001)
+        self.assertEqual(result["details"], "found")
+        self.assertEqual(result["urls"], ["https://onlyfans.com/900/examplestudio"])
+
+    def test_drm_video_name_without_quality_suffix_matches(self):
+        result = self.scrape("2001-02-03_900_0a1b2c3d4e5f6g7h8i9j0_9000000002.mp4", 9000000002)
+        self.assertEqual(result["details"], "found")
+
+    def test_image_name_with_dimensions_and_hash_matches(self):
+        result = self.scrape("2001-02-03_900_640x480_0123456789abcdef_9000000003.jpeg", 9000000003)
+        self.assertEqual(result["details"], "found")
+
+    def test_each_file_of_a_multi_media_post_gets_its_own_row(self):
+        db_path = self.box.db("examplestudio")
+        for media_id, text in ((9000000004, "first"), (9000000005, "second")):
+            con = sqlite3.connect(db_path)
+            con.execute("INSERT INTO medias (media_id, post_id, filename, api_type, downloaded) "
+                        "VALUES (?, ?, 'stored.mp4', 'Timeline', 1)", (media_id, media_id))
+            con.execute("INSERT INTO posts (post_id, text, created_at) VALUES (?, ?, ?)",
+                        (media_id, text, "2001-02-03T12:00:00+00:00"))
+            con.commit()
+            con.close()
+        first = self.box.video_path(self.FOLDER, "Timeline", "2001-02-03_900_aaa_source_9000000004.mp4")
+        second = self.box.video_path(self.FOLDER, "Timeline", "2001-02-03_900_bbb_source_9000000005.mp4")
+        self.assertEqual(self.box.run(first)[0]["details"], "first")
+        self.assertEqual(self.box.run(second)[0]["details"], "second")
+
+    def test_unknown_media_id_falls_back_to_the_name(self):
+        filename = "2001-02-03_900_0a1b2c3d4e5f6g7h8i9j0_source_9000000006.mp4"
+        db_path = self.box.db("examplestudio")
+        self.box.add_media(db_path, 9000000099, 900, "Timeline", "found", "2001-02-03T12:00:00+00:00",
+                           filename=filename, directory=f"/ofscraper/data/{self.FOLDER}/Posts/Videos")
+        path = self.box.video_path(self.FOLDER, "Timeline", filename)
+        self.assertEqual(self.box.run(path)[0]["details"], "found")
+
+    def test_old_bracketed_name_still_matches_by_media_id(self):
+        result = self.scrape("2001-02-03 - caption [0a1b2c3d4e5f6g7h8i9j0_source_9000000007].mp4", 9000000007)
+        self.assertEqual(result["details"], "found")
+
+    def test_cut_off_old_name_ending_in_digits_is_not_read_as_a_media_id(self):
+        truncated = "2001-02-03 - a long caption [0a1b2c3d4e5f6g7h8i9j0_source_123.mp4"
+        db_path = self.box.db("examplestudio")
+        self.box.add_media(db_path, 123, 123, "Timeline", "decoy", "2001-02-03T12:00:00+00:00",
+                           filename="decoy.mp4", directory=f"/ofscraper/data/{self.FOLDER}/Posts/Videos")
+        self.box.add_media(db_path, 9000000008, 900, "Timeline", "found", "2001-02-03T12:00:00+00:00",
+                           filename=truncated, directory=f"/ofscraper/data/{self.FOLDER}/Posts/Videos")
+        path = self.box.video_path(self.FOLDER, "Timeline", truncated)
+        self.assertEqual(self.box.run(path)[0]["details"], "found")
 
 
 if __name__ == "__main__":

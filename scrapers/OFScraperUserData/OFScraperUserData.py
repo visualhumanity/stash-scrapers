@@ -31,6 +31,7 @@ except ModuleNotFoundError:
     log.warning("ConvertHtmlToMarkdown scraper not found; descriptions stay HTML")
 
 MODEL_FOLDER = re.compile(r"^(?P<name>.*) \((?P<username>[^()]+)\)$")
+MEDIA_ID_NAME = re.compile(r"^\d{4}-\d{2}-\d{2}_\d+_.+_(\d+)\.[^.]+$")
 CACHE_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), "cache_db_location.json")
 
 TITLE_MIN = 30
@@ -113,7 +114,12 @@ def split_path(path):
 
 
 def media_id_from(filename):
-    match = re.search(r"_(\d+)\]\.[^.]+$", filename)
+    """Media ID from `{date}_{post_id}_{original_filename}_{media_id}.{ext}` or `... [<original>_<media id>].<ext>`.
+
+    The new format must match as a whole: an old name cut off by OF-Scraper can end in `_<digits>.<ext>`
+    where the digits are only part of a media ID.
+    """
+    match = MEDIA_ID_NAME.match(filename) or re.search(r"_(\d+)\]\.[^.]+$", filename)
     return int(match[1]) if match else None
 
 
