@@ -19,8 +19,6 @@ except ModuleNotFoundError:
 YEAR_MIN = 1900
 YEAR_MAX = 2100
 FALLBACK_TIME_ZONE = "America/Toronto"
-# 2000-01-01 00:00 UTC: the earliest Unix timestamp accepted
-TIMESTAMP_MIN = 946684800
 
 
 def is_valid_year(y: int) -> bool:
@@ -44,7 +42,6 @@ class Language:
                  ordinal_on_first_only=False):
         self.months = {**full, **abbreviated}
         self.ordinal_on_first_only = ordinal_on_first_only
-        # Abbreviations may end in a period ("Feb."); full names may not
         letter = r"[^\W\d_]"
         # Abbreviations may end in a period ("Feb."); full names may not.
         # A month word must not touch other letters ("Marvel", "Decent").
@@ -54,7 +51,7 @@ class Language:
             rf"(?!{letter})"
         )
         sep = r"(?P<sep>[ ._-])"
-        # The day may take an ordinal suffix and a comma ("Feb 16th, 2025")
+        # The day may take an ordinal suffix ("Feb 16th 2025")
         day = rf"(?<!\d)(?P<day>\d{{1,2}})(?!\d)(?P<ord>{ordinal})?"
         year4 = r"(?<!\d)(?P<year>\d{4})(?!\d)"
         # A two-digit year must not run into letters or digits ("25min")
@@ -68,8 +65,8 @@ class Language:
         self.formats = [
             # Month first: Feb 16 2025
             (DAY, rf"{mon}{sep}{day},?(?P=sep){year}"),
-            # Day first: 16 Feb 2025, 16th of February 2025
-            (DAY, rf"{day},?{sep}{day_connector}{mon}(?P=sep){year_connector}{year}"),
+            # Day first: 16 Feb 2025, 16 Feb, 2025, 16th of February 2025
+            (DAY, rf"{day}{sep}{day_connector}{mon},?(?P=sep){year_connector}{year}"),
             # Year first: 2025 Feb 16
             (DAY, rf"{year4}{sep}{mon}(?P=sep){day}"),
             # Compact day first: 16Feb2025, 16Feb25
@@ -136,6 +133,12 @@ SPANISH = Language(
 
 LANGUAGES = [ENGLISH, FRENCH, SPANISH]
 
+# A day (with any language's ordinal and connector) just before a month and
+# year. Its full date was rejected, so the month and year alone are not used.
+REJECTED_DAY_BEFORE = re.compile(
+    r"(?<!\d)\d{1,2}(?:(?:st|nd|rd|th|er|ère|º|o)?,?[ ._-](?:(?:of|de)[ ._-])?)?$", re.I
+)
+
 
 def numeric_candidates(filename: str, found: list, skipped: list):
     """The original numeric formats: year first, year last, and 8 digits."""
@@ -147,6 +150,7 @@ def numeric_candidates(filename: str, found: list, skipped: list):
         a = int(m.group(3))
         b = int(m.group(4))
         if not is_valid_year(year):
+            skipped.append((m.start(), f"'{m.group(0)}' has a year outside {YEAR_MIN}-{YEAR_MAX}"))
             continue
         if a > 12:
             # a cannot be a month; treat as YYYY-DD-MM
@@ -156,6 +160,8 @@ def numeric_candidates(filename: str, found: list, skipped: list):
             date = try_date(year, a, b)
         if date:
             found.append((DAY, m.start(), date))
+        else:
+            skipped.append((m.start(), f"'{m.group(0)}' is not a valid date"))
 
     # --- Pattern 2: 3-part, year last — XX<sep>XX<sep>YYYY ---
     for m in re.finditer(r'(?<!\d)(\d{1,2})([._-])(\d{1,2})\2(\d{4})(?!\d)', filename):
@@ -163,6 +169,13 @@ def numeric_candidates(filename: str, found: list, skipped: list):
         b = int(m.group(3))
         year = int(m.group(4))
         if not is_valid_year(year):
+            skipped.append((m.start(), f"'{m.group(0)}' has a year outside {YEAR_MIN}-{YEAR_MAX}"))
+            continue
+        if a <= 12 and b <= 12:
+            skipped.append((
+                m.start(),
+                f"cannot determine if '{a:02d}' or '{b:02d}' is the month in '{filename}'",
+            ))
             continue
         if a > 12 and b <= 12:
             # a cannot be a month → DD-MM-YYYY
@@ -172,13 +185,10 @@ def numeric_candidates(filename: str, found: list, skipped: list):
             date = try_date(year, a, b)
         else:
             date = None
-            if a <= 12 and b <= 12:
-                skipped.append(
-                    f"cannot determine if '{a:02d}' or '{b:02d}' is the month "
-                    f"in '{filename}'"
-                )
         if date:
             found.append((DAY, m.start(), date))
+        else:
+            skipped.append((m.start(), f"'{m.group(0)}' is not a valid date"))
 
     # --- Pattern 3: 8-digit, no separator — YYYYMMDD or DDMMYYYY / MMDDYYYY ---
     for m in re.finditer(r'(?<!\d)(\d{8})(?!\d)', filename):
@@ -205,15 +215,19 @@ def numeric_candidates(filename: str, found: list, skipped: list):
                 # b cannot be a month → MM-DD-YYYY
                 date = try_date(year, a, b)
             elif a <= 12 and b <= 12:
-                skipped.append(
+                skipped.append((
+                    m.start(),
                     f"cannot determine if '{a:02d}' or '{b:02d}' is the month "
-                    f"in 8-digit sequence '{s}' from '{filename}'"
-                )
+                    f"in 8-digit sequence '{s}' from '{filename}'",
+                ))
+                continue
             if date:
                 found.append((DAY, m.start(), date))
+                continue
+        skipped.append((m.start(), f"'{s}' is not a valid date"))
 
 
-def other_numeric_candidates(filename: str, found: list):
+def other_numeric_candidates(filename: str, found: list, skipped: list):
     """Scene-release dates, year and month, and bracketed years."""
     # Scene release: Site.YY.MM.DD.Title, always year first and set off by dots.
     # Inside a lookahead, so overlapping runs like .12.25.02.16. are all tried.
@@ -221,10 +235,14 @@ def other_numeric_candidates(filename: str, found: list):
         date = try_date(2000 + int(m.group(1)), int(m.group(2)), int(m.group(3)))
         if date:
             found.append((DAY, m.start(), date))
+        else:
+            text = ".".join(m.groups())
+            skipped.append((m.start(), f"'{text}' is not a valid YY.MM.DD date"))
 
-    # Year and month: 2025-02. Not when more digits follow a separator, so a
-    # rejected 2024-02-30 or 2024-05_17 is not read as a month.
-    for m in re.finditer(r"(?<!\d)(?<!\d[._-])(\d{4})([._-])(\d{1,2})(?!\d)(?![._-]\d)", filename):
+    # Year and month: 2025-02, with a two-digit month so counters like
+    # IMG_2048_3 are not read as dates. Not when more digits follow a
+    # separator, so a rejected 2024-02-30 or 2024-05_17 is not read as a month.
+    for m in re.finditer(r"(?<!\d)(?<!\d[._-])(\d{4})([._-])(\d{2})(?!\d)(?![._-]\d)", filename):
         year = int(m.group(1))
         month = int(m.group(3))
         if is_valid_year(year) and 1 <= month <= 12:
@@ -237,24 +255,31 @@ def other_numeric_candidates(filename: str, found: list):
             found.append((YEAR, m.start(), f"{year:04d}"))
 
 
-def month_name_candidates(filename: str, found: list):
+def month_name_candidates(filename: str, found: list, skipped: list):
     for language in LANGUAGES:
         for precision, pattern in language.formats:
             for m in pattern.finditer(filename):
                 year = m.group("year").lstrip("'")
                 year = int(year) if len(year) == 4 else 2000 + int(year)
                 if not is_valid_year(year):
+                    skipped.append((m.start(), f"'{m.group(0)}' has a year outside {YEAR_MIN}-{YEAR_MAX}"))
                     continue
                 month = language.month(m.group("mon"))
                 if precision == MONTH:
-                    found.append((MONTH, m.start(), f"{year:04d}-{month:02d}"))
+                    rejected = REJECTED_DAY_BEFORE.search(filename[:m.start()])
+                    if rejected:
+                        text = filename[rejected.start():m.end()]
+                        skipped.append((rejected.start(), f"'{text}' is not a valid date"))
+                    else:
+                        found.append((MONTH, m.start(), f"{year:04d}-{month:02d}"))
                     continue
                 day = int(m.group("day"))
-                if m.groupdict().get("ord") and language.ordinal_on_first_only and day != 1:
-                    continue
-                date = try_date(year, month, day)
+                wrong_ordinal = m.groupdict().get("ord") and language.ordinal_on_first_only and day != 1
+                date = None if wrong_ordinal else try_date(year, month, day)
                 if date:
                     found.append((DAY, m.start(), date))
+                else:
+                    skipped.append((m.start(), f"'{m.group(0)}' is not a valid date"))
 
 
 def local_zone():
@@ -275,7 +300,7 @@ def local_zone():
         return None
 
 
-def timestamp_date(filename: str):
+def timestamp_date(filename: str, skipped: list):
     """
     A Unix timestamp (10 digits, or 13 for milliseconds) that is the whole
     filename, or a prefix or suffix set off by a separator. Brackets do not
@@ -289,11 +314,14 @@ def timestamp_date(filename: str):
     zone = local_zone()
     if zone is None:
         return None
+    # From 2000-01-01 in the container's zone up to now
+    earliest = datetime(2000, 1, 1, tzinfo=zone).timestamp()
     now = datetime.now(timezone.utc).timestamp()
     for stamp in stamps:
         seconds = int(stamp) / 1000 if len(stamp) == 13 else int(stamp)
-        if TIMESTAMP_MIN <= seconds <= now:
+        if earliest <= seconds <= now:
             return datetime.fromtimestamp(seconds, zone).strftime("%Y-%m-%d")
+        skipped.append((filename.find(stamp), f"timestamp {stamp} is out of range"))
     return None
 
 
@@ -306,25 +334,25 @@ def parse_date(filename: str):
     only when there is no other candidate.
 
     Returns YYYY-MM-DD, YYYY-MM or YYYY when a date is found unambiguously,
-    or None otherwise.
-    Logs a message when a candidate date is skipped due to ambiguity.
+    or None otherwise. When none is found, logs why the leftmost skipped
+    candidate (ambiguous or invalid) was not used.
     """
     # One form for accented letters, so "février" matches however it was stored
     filename = unicodedata.normalize("NFC", filename)
     found = []
     skipped = []
     numeric_candidates(filename, found, skipped)
-    other_numeric_candidates(filename, found)
-    month_name_candidates(filename, found)
+    other_numeric_candidates(filename, found, skipped)
+    month_name_candidates(filename, found, skipped)
 
     if found:
         return min(found)[2]
 
     # Last resort: timestamps are too easily confused with media IDs to
     # compete with any other date
-    date = timestamp_date(filename)
+    date = timestamp_date(filename, skipped)
     if not date and skipped:
-        log.info(f"Skipping ambiguous date: {skipped[0]}")
+        log.info(f"Skipped candidate: {min(skipped)[1]}")
     return date
 
 

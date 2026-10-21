@@ -96,6 +96,11 @@ class MonthNameTests(unittest.TestCase):
     def test_invalid_day_gives_nothing(self):
         self.assertIsNone(parse_date("clip Feb 30 2025"))
 
+    def test_day_first_comma_goes_after_the_month(self):
+        self.assertEqual(parse_date("clip 16 Feb, 2025"), "2025-02-16")
+        self.assertEqual(parse_date("clip 16 February, 2025"), "2025-02-16")
+        self.assertIsNone(parse_date("clip 16, Feb 2025"))
+
     def test_day_month_year(self):
         self.assertEqual(parse_date("clip 16 Feb 2025"), "2025-02-16")
         self.assertEqual(parse_date("clip 16-Feb-2025"), "2025-02-16")
@@ -171,6 +176,8 @@ class NumericAdditionTests(unittest.TestCase):
         self.assertIsNone(parse_date("clip 202502"))
         self.assertIsNone(parse_date("clip 2025-13"))
         self.assertIsNone(parse_date("clip 2025-021"))
+        self.assertIsNone(parse_date("IMG_2048_3"))
+        self.assertIsNone(parse_date("clip 2025-2"))
 
     def test_invalid_full_date_is_not_read_as_year_month(self):
         self.assertIsNone(parse_date("clip 2024-02-30"))
@@ -250,6 +257,12 @@ class TimestampTests(unittest.TestCase):
         # 2100-01-01, in the future
         self.assertIsNone(parse_in_zone("clip_4102444800"))
 
+    def test_lower_bound_is_local_midnight(self):
+        # 1999-12-31 20:00 in Toronto
+        self.assertIsNone(parse_in_zone("clip_0946688400", "America/Toronto"))
+        # 2000-01-01 00:00 in Toronto
+        self.assertEqual(parse_in_zone("clip_0946702800", "America/Toronto"), "2000-01-01")
+
     def test_lowest_priority(self):
         self.assertEqual(parse_in_zone(f"{STAMP}_Example Movie (2019)"), "2019")
         self.assertEqual(parse_in_zone(f"2001-02-03_{STAMP}"), "2001-02-03")
@@ -272,7 +285,7 @@ class FrenchAndSpanishTests(unittest.TestCase):
         self.assertEqual(parse_date(decomposed), "2025-02-16")
 
     def test_french_ordinal_only_on_the_first(self):
-        self.assertEqual(parse_date("clip 2er mars 2025"), "2025-03")
+        self.assertIsNone(parse_date("clip 2er mars 2025"))
 
     def test_spanish(self):
         self.assertEqual(parse_date("clip 16 de febrero de 2025"), "2025-02-16")
@@ -282,30 +295,38 @@ class FrenchAndSpanishTests(unittest.TestCase):
         self.assertEqual(parse_date("clip 16 setiembre 2025"), "2025-09-16")
 
     def test_spanish_ordinal_only_on_the_first(self):
-        self.assertEqual(parse_date("clip 2º de mayo de 2025"), "2025-05")
+        self.assertIsNone(parse_date("clip 2º de mayo de 2025"))
 
     def test_connectors_stay_in_their_language(self):
-        # The month and year alone may still give a month-precision date
-        self.assertNotEqual(parse_date("clip 16th de febrero de 2025"), "2025-02-16")
-        self.assertNotEqual(parse_date("clip 16 of febrero 2025"), "2025-02-16")
-        self.assertNotEqual(parse_date("clip 1er de febrero de 2025"), "2025-02-01")
+        self.assertIsNone(parse_date("clip 16th de febrero de 2025"))
+        self.assertIsNone(parse_date("clip 16th de febrero 2025"))
+        self.assertIsNone(parse_date("clip 16 of febrero 2025"))
+        self.assertIsNone(parse_date("clip 16 de February 2025"))
+        self.assertIsNone(parse_date("clip 1er de febrero de 2025"))
+
+    def test_rejected_day_first_date_does_not_fall_back_to_month(self):
+        self.assertIsNone(parse_date("clip 31 Feb 2025"))
+        self.assertIsNone(parse_date("clip 35Feb2025"))
 
     def test_spanish_set_is_not_a_month(self):
         # "set" is too common an English word to stand for septiembre
         self.assertIsNone(parse_date("clip 16 set 2025"))
 
 
-def run_scraper(fragment, tz="UTC"):
-    """Run the scraper as Stash would: JSON on stdin, JSON on stdout."""
+def run_script(fragment, tz="UTC"):
+    """Run the scraper as Stash would: JSON on stdin, JSON on stdout, log on stderr."""
     env = {**os.environ, "TZ": tz}
-    result = subprocess.run(
+    return subprocess.run(
         [sys.executable, "-B", SCRIPT],
         input=json.dumps(fragment),
         capture_output=True,
         text=True,
         env=env,
     )
-    return json.loads(result.stdout)
+
+
+def run_scraper(fragment, tz="UTC"):
+    return json.loads(run_script(fragment, tz).stdout)
 
 
 def scene(path):
@@ -330,6 +351,27 @@ class ScriptTests(unittest.TestCase):
 
     def test_no_files(self):
         self.assertIsNone(run_scraper({"id": "1", "files": []}))
+
+    def test_invalid_candidate_is_logged(self):
+        result = run_script(scene("/data/example/clip 2024-02-30.mp4"))
+        self.assertEqual(json.loads(result.stdout), {})
+        self.assertIn("2024-02-30", result.stderr)
+        self.assertIn("not a valid date", result.stderr)
+
+    def test_rejected_ordinal_is_logged(self):
+        result = run_script(scene("/data/example/clip 2er mars 2025.mp4"))
+        self.assertEqual(json.loads(result.stdout), {})
+        self.assertIn("2er mars 2025", result.stderr)
+
+    def test_out_of_range_timestamp_is_logged(self):
+        result = run_script(scene("/data/example/clip_4102444800.mp4"))
+        self.assertEqual(json.loads(result.stdout), {})
+        self.assertIn("timestamp 4102444800 is out of range", result.stderr)
+
+    def test_skip_reason_not_logged_when_a_date_is_found(self):
+        result = run_script(scene("/data/example/2024-02-30 clip 2024-07-30.mp4"))
+        self.assertEqual(json.loads(result.stdout), {"date": "2024-07-30"})
+        self.assertNotIn("not a valid date", result.stderr)
 
     def test_time_zone_is_honored(self):
         fragment = scene("/data/example/1739664000.mp4")
