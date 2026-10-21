@@ -9,7 +9,7 @@ Python script scrapers for [Stash](https://github.com/stashapp/stash), published
 | Directory | Name | Description |
 |-----------|------|-------------|
 | `FileMetadata` | VH - File Metadata (ffprobe) | Reads title, URL, description, date, and performer from a video file's embedded metadata tags via ffprobe |
-| `DateFromFilename` | VH - Extract Date from Filename | Parses a scene date from the video filename, supporting a variety of formats and separators; skips and logs ambiguous cases |
+| `DateFromFilename` | VH - Extract Date from Filename | Parses a scene date from the video file's name (never its folders): numeric dates, `YY.MM.DD` scene releases, English, French and Spanish month names (`Feb 16, 2025`, `16 de febrero de 2025`, `16Feb2025`), partial dates (`Feb 2025`, `2025-02`, `(2019)`) and, as a last resort, Unix timestamps at the start or end of the name (container `TZ`); the most precise date wins, then the leftmost; skips and logs ambiguous cases |
 | `ConvertHtmlToMarkdown` | VH - Convert HTML to Markdown | Converts an HTML scene description (e.g. one extracted from embedded video metadata) into Markdown, turning links into `[text](url)` hyperlinks; leaves plain-text descriptions untouched |
 | `GalleryDlTwitter` | VH - Gallery-DL - Twitter | Reads the gallery-dl `<media file>.json` sidecar next to a Twitter scene or image and fills title (first caption line, ` [i]` for multi-media tweets), details, date (container `TZ`), code (tweet ID), URL, performer and studio (poster handle) and tags (hashtags); skips avatar/background sidecars. Images need an API key in `py_common/config.ini`; see its README |
 | `OFScraperUserData` | VH - OF-Scraper - User Data | Reads OF-Scraper's per-account `user_data.db` (read-only) to fill title (inferred from the description: first usable line, cut at emoji or sentence ends, filler removed), date (container `TZ`), studio and performer (model folder), mentioned accounts as extra performers, URL (posts only) and description converted to Markdown via the `ConvertHtmlToMarkdown` module (required package); scene by fragment only |
@@ -47,7 +47,7 @@ sceneByFragment:               # action exposed in the Stash Identify task
 ## Python script conventions
 
 - **stdin**: JSON fragment from Stash — always contains `id`; `files` (list with `path`) is present for `sceneByFragment`.
-- **stdout**: JSON object with fields to update (`{"date": "YYYY-MM-DD"}`), `{}` for no update, or `null` on a fatal error.
+- **stdout**: JSON object with fields to update (`{"date": "YYYY-MM-DD"}`), `{}` for no update, or `null` on a fatal error. Dates may also be partial, `YYYY-MM` or `YYYY`: Stash (0.31.1 checked) stores them with month or year precision.
 - Use `python` (not `python3`) to match the existing scraper manifests.
 - Import logging from `py_common`: `from py_common import log` → `log.trace/debug/info/warning/error(...)`.
 - Before any `py_common` import, add `<scrapers>/community` to `sys.path` (copy the block at the top of `DateFromFilename.py`). Stash's default Community source installs `py_common` into `scrapers/community/`, but only puts `scrapers/` on `PYTHONPATH`, so a bare import fails unless another source happens to install `py_common` at the top level.
