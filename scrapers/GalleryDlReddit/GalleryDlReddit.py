@@ -2,7 +2,7 @@ import json
 import os
 import re
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 
 # py_common is installed at scrapers/community/py_common/; our scraper is at
 # scrapers/<vendor>/GalleryDlReddit/ — go up two levels then into community/
@@ -13,6 +13,19 @@ try:
 except ModuleNotFoundError:
     print("You need to install py_common from the community scraper package.", file=sys.stderr)
     sys.exit(1)
+
+# gallery-dl writes "<media file name>.json" next to each file (--write-metadata).
+# Only that file is read; "<media id>.info.json" files and a folder's "info.json"
+# are never opened.
+METADATA_SUFFIX = ".json"
+
+REDDIT = "https://www.reddit.com"
+
+# Reddit's placeholder author for deleted accounts
+DELETED_AUTHOR = "[deleted]"
+
+# Folder gallery-dl Reddit downloads are filed under, e.g. ".../r_ExampleSub/<file>"
+SUBREDDIT_FOLDER_RE = re.compile(r"^r_(?P<subreddit>.+)$")
 
 # gallery-dl Reddit filenames: "<title> - <YYYY-MM-DD> - <performer>[ - <index>].<ext>"
 # The trailing " - <index>" is only present on multi-file posts (galleries); single-file
@@ -81,29 +94,149 @@ def input_paths(fragment: dict):
     return [f["path"] for f in fragment.get("files") or [] if isinstance(f, dict) and f.get("path")]
 
 
-def scrape_path(path: str):
+def load_metadata(media_path: str):
+    """
+    Read the gallery-dl metadata file next to a media file. Returns None when it is
+    missing, unreadable, not a JSON object, or not Reddit data (e.g. RedGIFs).
+    """
+    path = media_path + METADATA_SUFFIX
+    try:
+        with open(path, encoding="utf-8") as f:
+            meta = json.load(f)
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError) as e:
+        log.warning(f"Could not read metadata file '{path}': {e}")
+        return None
+
+    if not isinstance(meta, dict):
+        log.warning(f"Metadata file '{path}' is not a JSON object")
+        return None
+    if meta.get("category") != "reddit":
+        log.debug(f"Metadata file '{path}' holds {meta.get('category')!r} data, not Reddit; using the file name")
+        return None
+    return meta
+
+
+def text(value):
+    """A trimmed non-empty string, else None."""
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+def post_date(meta: dict):
+    """
+    The post's UTC date. gallery-dl's `date` is created_utc as UTC "YYYY-MM-DD HH:MM:SS",
+    the same date its file names carry, so no time zone conversion is done.
+    """
+    value = meta.get("date")
+    if isinstance(value, str):
+        try:
+            return datetime.strptime(value, "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d")
+        except ValueError:
+            pass
+
+    created = meta.get("created_utc")
+    if isinstance(created, (int, float)) and not isinstance(created, bool):
+        try:
+            return datetime.fromtimestamp(created, timezone.utc).strftime("%Y-%m-%d")
+        except (OverflowError, OSError, ValueError):
+            pass
+    return None
+
+
+def make_performer(author: str):
+    return {"name": f"u_{author}", "urls": [f"{REDDIT}/user/{author}"]}
+
+
+def make_studio(subreddit: str):
+    return {"name": f"r/{subreddit}", "urls": [f"{REDDIT}/r/{subreddit}"], "parent": {"name": "Reddit"}}
+
+
+def scrape_metadata(meta: dict):
+    """Map a gallery-dl Reddit metadata file onto the fields shared by scenes and images."""
+    scraped = {}
+
+    title = text(meta.get("title"))
+    if title:
+        scraped["title"] = title
+
+    date = post_date(meta)
+    if date:
+        scraped["date"] = date
+
+    permalink = text(meta.get("permalink"))
+    if permalink and permalink.startswith("/"):
+        scraped["urls"] = [REDDIT + permalink]
+
+    post_id = text(meta.get("id"))
+    if post_id:
+        scraped["code"] = post_id
+
+    details = text(meta.get("selftext"))
+    if details:
+        scraped["details"] = details
+
+    author = text(meta.get("author"))
+    if author and author != DELETED_AUTHOR:
+        scraped["performers"] = [make_performer(author)]
+
+    subreddit = text(meta.get("subreddit"))
+    if subreddit:
+        scraped["studio"] = make_studio(subreddit)
+
+    flair = text(meta.get("link_flair_text"))
+    if flair:
+        scraped["tags"] = [{"name": flair}]
+
+    return scraped
+
+
+def scrape_filename(path: str):
+    """Fallback: title, date and performer from the file name, studio from an r_<subreddit> folder."""
     filename = os.path.splitext(os.path.basename(path))[0]
     parsed = parse_filename(filename)
     if not parsed:
         return None
     title, date, performer = parsed
-    return {
+    scraped = {
         "title": title,
         "date": date,
         "performers": [{"name": performer}],
     }
 
+    folder = SUBREDDIT_FOLDER_RE.match(os.path.basename(os.path.dirname(path)))
+    if folder:
+        scraped["studio"] = make_studio(folder.group("subreddit"))
+    return scraped
+
+
+def scrape_path(path: str):
+    """Returns (scraped, source) for one media file, or (None, None)."""
+    meta = load_metadata(path)
+    if meta is not None:
+        scraped = scrape_metadata(meta)
+        if scraped:
+            return scraped, f"metadata file '{path}{METADATA_SUFFIX}'"
+        log.debug(f"Metadata file '{path}{METADATA_SUFFIX}' has no usable fields; using the file name")
+
+    scraped = scrape_filename(path)
+    if scraped:
+        return scraped, f"file name '{path}'"
+    return None, None
+
 
 def run(kind: str, item_id: str, paths):
     """Scrape from the first path that yields a result."""
     for path in paths:
-        scraped = scrape_path(path)
+        scraped, source = scrape_path(path)
         if scraped:
-            log.info(f"{kind} {item_id}: extracted {scraped} from '{path}'")
+            log.info(f"{kind} {item_id}: extracted {scraped} from {source}")
             print(json.dumps(scraped))
             return
 
-    log.info(f"{kind} {item_id}: no filename matched the expected pattern: {paths}")
+    log.info(f"{kind} {item_id}: no Reddit metadata file and no file name matching the expected pattern: {paths}")
     print(json.dumps({}))
 
 
