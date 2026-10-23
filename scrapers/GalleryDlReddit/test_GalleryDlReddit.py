@@ -145,9 +145,9 @@ class SceneTests(ScraperTestCase):
         proc = self.run_scraper("scene", self.scene("Example Post - 2001-02-03 - u_example_user.mp4"))
         self.assertEqual(self.output(proc), EXPECTED)
 
-    def test_gallery_index_is_not_part_of_the_result(self):
+    def test_gallery_index_numbers_the_title_only(self):
         proc = self.run_scraper("scene", self.scene("Example Post - 2001-02-03 - u_example_user - 2.mp4"))
-        self.assertEqual(self.output(proc), EXPECTED)
+        self.assertEqual(self.output(proc), dict(EXPECTED, title="Example Post [2]"))
 
     def test_title_containing_the_separator(self):
         proc = self.run_scraper("scene", self.scene("Part A - Part B - 2001-02-03 - u_example_user.mp4"))
@@ -217,7 +217,7 @@ class ImageTests(ScraperTestCase):
         return {"findImage": {"visual_files": [{"path": self.path(n)} for n in names]}}
 
     def test_input_file_paths_are_used_without_a_lookup(self):
-        fragment = {"id": "7", "files": [{"path": self.path("Example Post - 2001-02-03 - u_example_user - 1.jpg")}]}
+        fragment = {"id": "7", "files": [{"path": self.path("Example Post - 2001-02-03 - u_example_user.jpg")}]}
         proc = self.run_scraper("image", fragment)
         self.assertEqual(self.output(proc), EXPECTED)
         self.assertEqual(self.graphql_calls(), [])
@@ -424,6 +424,106 @@ class MetadataTests(ScraperTestCase):
 
     def test_nothing_usable_is_an_empty_update(self):
         self.assertEqual(self.scrape("scene", [self.path("example clip.mp4")]), {})
+
+
+def gallery_metadata(count, **overrides):
+    """Metadata of a gallery post with `count` items."""
+    items = [{"media_id": f"example{i}", "id": i} for i in range(1, count + 1)]
+    return reddit_metadata(gallery_data={"items": items}, **overrides)
+
+
+GALLERY_TITLE = EXPECTED_FROM_METADATA["title"]
+
+
+def gallery_name(n, ext="jpg"):
+    return f"Example Post - 2001-02-03 - u_example_user - {n}.{ext}"
+
+
+class GalleryTests(ScraperTestCase):
+    def scrape(self, *paths):
+        fragment = {"id": "7", "files": [{"path": p} for p in paths]}
+        return self.output(self.run_scraper("image", fragment))
+
+    def test_image_n_uses_image_1_metadata(self):
+        self.write_metadata(self.path(gallery_name(1)), gallery_metadata(3))
+        scraped = self.scrape(self.path(gallery_name(3)))
+        self.assertEqual(scraped, dict(EXPECTED_FROM_METADATA, title=f"{GALLERY_TITLE} [3/3]"))
+
+    def test_image_1_gets_its_number(self):
+        media = self.write_metadata(self.path(gallery_name(1)), gallery_metadata(3))
+        self.assertEqual(self.scrape(media)["title"], f"{GALLERY_TITLE} [1/3]")
+
+    def test_image_n_with_its_own_metadata_file_uses_it(self):
+        self.write_metadata(self.path(gallery_name(1)), gallery_metadata(3, title="Wrong Post"))
+        media = self.write_metadata(self.path(gallery_name(2)), gallery_metadata(3))
+        self.assertEqual(self.scrape(media)["title"], f"{GALLERY_TITLE} [2/3]")
+
+    def test_image_1_with_another_extension_is_found(self):
+        self.write_metadata(self.path(gallery_name(1, "png")), gallery_metadata(2))
+        self.assertEqual(self.scrape(self.path(gallery_name(2, "gif")))["title"], f"{GALLERY_TITLE} [2/2]")
+
+    def test_image_1_in_another_folder_is_not_used(self):
+        self.write_metadata(self.path(gallery_name(1), "r_OtherSub"), gallery_metadata(3))
+        scraped = self.scrape(self.path(gallery_name(2)))
+        self.assertEqual(scraped, dict(EXPECTED, title="Example Post [2]"))
+
+    def test_image_1_of_another_post_is_not_used(self):
+        other = "Other Post - 2001-02-03 - u_example_user - 1.jpg"
+        self.write_metadata(self.path(other), gallery_metadata(3))
+        self.assertEqual(self.scrape(self.path(gallery_name(2)))["title"], "Example Post [2]")
+
+    def test_image_n_with_neither_metadata_file_falls_back_to_the_file_name(self):
+        scraped = self.scrape(self.path(gallery_name(4)))
+        self.assertEqual(scraped, dict(EXPECTED, title="Example Post [4]"))
+
+    def test_redgifs_image_1_metadata_is_not_borrowed(self):
+        self.write_metadata(self.path(gallery_name(1)), {"category": "redgifs", "id": "examplegif"})
+        self.assertEqual(self.scrape(self.path(gallery_name(2)))["title"], "Example Post [2]")
+
+    def test_unusable_own_metadata_does_not_borrow(self):
+        # Only a missing metadata file borrows image 1's
+        self.write_metadata(self.path(gallery_name(1)), gallery_metadata(3))
+        media = self.write_metadata(self.path(gallery_name(2)), {"category": "redgifs", "id": "examplegif"})
+        self.assertEqual(self.scrape(media)["title"], "Example Post [2]")
+
+    def test_filename_fallback_numbers_image_1(self):
+        self.assertEqual(self.scrape(self.path(gallery_name(1)))["title"], "Example Post [1]")
+
+    def test_single_image_post_is_unnumbered(self):
+        media = self.write_metadata(self.path("Example Post - 2001-02-03 - u_example_user.jpg"), reddit_metadata())
+        self.assertEqual(self.scrape(media)["title"], GALLERY_TITLE)
+
+    def test_suffix_0_is_unnumbered(self):
+        media = self.write_metadata(self.path(gallery_name(0)), reddit_metadata())
+        self.assertEqual(self.scrape(media)["title"], GALLERY_TITLE)
+        self.assertEqual(self.scrape(self.path(gallery_name(0), "downloads"))["title"], "Example Post")
+
+    def test_one_item_gallery_is_unnumbered(self):
+        media = self.write_metadata(self.path(gallery_name(1)), gallery_metadata(1))
+        self.assertEqual(self.scrape(media)["title"], GALLERY_TITLE)
+
+    def test_numbered_file_without_gallery_data_gets_n(self):
+        media = self.write_metadata(self.path(gallery_name(2)), reddit_metadata())
+        self.assertEqual(self.scrape(media)["title"], f"{GALLERY_TITLE} [2]")
+
+    def test_metadata_file_name_without_suffix_is_unnumbered(self):
+        media = self.write_metadata(self.path("abc123 example.jpg"), gallery_metadata(3))
+        self.assertEqual(self.scrape(media)["title"], GALLERY_TITLE)
+
+    def test_deleted_gallery_data_gives_no_total(self):
+        media = self.write_metadata(self.path(gallery_name(2)), reddit_metadata(gallery_data=None))
+        self.assertEqual(self.scrape(media)["title"], f"{GALLERY_TITLE} [2]")
+
+    def test_no_title_gets_no_bare_number(self):
+        meta = gallery_metadata(3)
+        del meta["title"]
+        media = self.write_metadata(self.path(gallery_name(2)), meta)
+        self.assertNotIn("title", self.scrape(media))
+
+    def test_scene_in_a_gallery_is_numbered_too(self):
+        self.write_metadata(self.path(gallery_name(1)), gallery_metadata(2))
+        fragment = {"id": "1", "files": [{"path": self.path(gallery_name(2, "mp4"))}]}
+        self.assertEqual(self.output(self.run_scraper("scene", fragment))["title"], f"{GALLERY_TITLE} [2/2]")
 
 
 if __name__ == "__main__":

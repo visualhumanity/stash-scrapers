@@ -1,3 +1,4 @@
+import glob
 import json
 import os
 import re
@@ -219,17 +220,90 @@ def scrape_filename(path: str):
     return scraped
 
 
+def file_number(path: str):
+    """The gallery number from a file name's " - <n>" suffix, or None."""
+    m = FILENAME_RE.match(os.path.splitext(os.path.basename(path))[0])
+    if m and m.group("index"):
+        return int(m.group("index"))
+    return None
+
+
+def first_image_paths(path: str):
+    """
+    Candidate media paths for image 1 of the same gallery post: the same file name with
+    " - 1" in the same folder. The same extension is tried first; image 1 can have
+    another one (a .png in a gallery of .jpg files).
+    """
+    folder, name = os.path.split(path)
+    stem, ext = os.path.splitext(name)
+    m = FILENAME_RE.match(stem)
+    first_stem = stem[: m.start("index")] + "1"
+
+    candidates = [os.path.join(folder, first_stem + ext)]
+    pattern = os.path.join(glob.escape(folder), glob.escape(first_stem) + ".*" + METADATA_SUFFIX)
+    for metadata_path in sorted(glob.glob(pattern)):
+        media = metadata_path[: -len(METADATA_SUFFIX)]
+        if media not in candidates and not media.endswith(".info"):
+            candidates.append(media)
+    return candidates
+
+
+def find_metadata(path: str, number):
+    """
+    The usable metadata for a media file, and the metadata file it came from. Images 2 to N
+    of a gallery post have no metadata file of their own, so they use image 1's.
+    """
+    meta = load_metadata(path)
+    if meta is not None:
+        return meta, path + METADATA_SUFFIX
+
+    if number is None or number < 2 or os.path.exists(path + METADATA_SUFFIX):
+        return None, None
+
+    for first in first_image_paths(path):
+        meta = load_metadata(first)
+        if meta is not None:
+            return meta, first + METADATA_SUFFIX
+    return None, None
+
+
+def gallery_size(meta: dict):
+    """The number of items in a gallery post, or None when the metadata does not say."""
+    gallery = meta.get("gallery_data")
+    if isinstance(gallery, dict) and isinstance(gallery.get("items"), list) and gallery["items"]:
+        return len(gallery["items"])
+    return None
+
+
+def number_title(scraped: dict, number, total):
+    """
+    Add " [n/N]" to the title of an image in a post with more than one image, or " [n]"
+    when the total is unknown. Numbers below 1 (" - 0", single-image posts), a missing
+    suffix and one-item galleries leave the title as it is.
+    """
+    if "title" not in scraped or number is None or number < 1:
+        return
+    if total is None:
+        scraped["title"] += f" [{number}]"
+    elif total > 1:
+        scraped["title"] += f" [{number}/{total}]"
+
+
 def scrape_path(path: str):
     """Returns (scraped, source) for one media file, or (None, None)."""
-    meta = load_metadata(path)
+    number = file_number(path)
+
+    meta, metadata_path = find_metadata(path, number)
     if meta is not None:
         scraped = scrape_metadata(meta)
         if scraped:
-            return scraped, f"metadata file '{path}{METADATA_SUFFIX}'"
-        log.debug(f"Metadata file '{path}{METADATA_SUFFIX}' has no usable fields; using the file name")
+            number_title(scraped, number, gallery_size(meta))
+            return scraped, f"metadata file '{metadata_path}'"
+        log.debug(f"Metadata file '{metadata_path}' has no usable fields; using the file name")
 
     scraped = scrape_filename(path)
     if scraped:
+        number_title(scraped, number, None)
         return scraped, f"file name '{path}'"
     return None, None
 

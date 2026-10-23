@@ -8,7 +8,7 @@ Actions: `sceneByFragment` and `imageByFragment` (use them from the scene/image 
 
 For each file of the scene or image, in order, the scraper tries:
 
-1. **The metadata file**: `<media file name>.json` next to the media (for example `clip.mp4` is described by `clip.mp4.json`, written by `gallery-dl --write-metadata`). It is used only when its gallery-dl `category` is `reddit`. A RedGIFs metadata file (`category` `redgifs`), an unreadable one, or one with no usable fields counts as not usable. `<media id>.info.json` files and a folder's `info.json` are never read.
+1. **The metadata file**: `<media file name>.json` next to the media (for example `clip.mp4` is described by `clip.mp4.json`, written by `gallery-dl --write-metadata`). It is used only when its gallery-dl `category` is `reddit`. A RedGIFs metadata file (`category` `redgifs`), an unreadable one, or one with no usable fields counts as not usable. `<media id>.info.json` files and a folder's `info.json` are never read. Images 2 to N of a gallery post have no metadata file of their own and use image 1's (see [Gallery posts](#gallery-posts)).
 2. **The file name**, when there is no usable metadata file.
 
 The first file that yields a result wins.
@@ -17,7 +17,7 @@ The first file that yields a result wins.
 
 | Stash field | Metadata key | Rule |
 |---|---|---|
-| title | `title` | The exact post title, trimmed. |
+| title | `title` | The exact post title, trimmed, numbered for gallery posts (see [Gallery posts](#gallery-posts)). |
 | date | `date`, else `created_utc` | The post's UTC date as `YYYY-MM-DD`. gallery-dl's `date` is `created_utc` written as UTC `YYYY-MM-DD HH:MM:SS`, the same date gallery-dl puts in file names, so no time zone conversion is done. |
 | urls | `permalink` | `https://www.reddit.com` + permalink. |
 | code | `id` | The post ID. |
@@ -42,21 +42,39 @@ for example `Example Post - 2001-02-03 - u_example_user.mp4`, or `Example Post -
 
 | Stash field | Source |
 |---|---|
-| title | `<title>`, trimmed. File names are sanitized, so this can differ from the post title. |
+| title | `<title>`, trimmed, plus ` [n]` for gallery files (see [Gallery posts](#gallery-posts)). File names are sanitized, so this can differ from the post title. |
 | date | `<YYYY-MM-DD>` |
 | performers | one performer named `<performer>` (gallery-dl's `u_<author>`). A `u_<author>` name gets the profile URL `https://www.reddit.com/user/<author>`, as on the metadata path; any other name gets no URL. |
 | studio | from the folder the file is in, when it is named `r_<subreddit>`: same studio as above |
 
 - The title may itself contain ` - `: the last ` - <YYYY-MM-DD> - ` in the name marks where the title ends.
-- The trailing ` - <n>` gallery number is optional and is not part of any field.
+- The trailing ` - <n>` gallery number is optional. It only numbers the title.
 - A performer name ending in digits (`u_example_user_1234`) is kept whole.
 - The date must be a real calendar date.
+
+## Gallery posts
+
+gallery-dl numbers the files of a multi-image post with a ` - <n>` suffix (`... - 1.jpg`, `... - 2.jpg`, ...) and writes a metadata file for image 1 only.
+
+- **Borrowing:** a file numbered 2 or more with no metadata file of its own uses image 1's: the same file name with ` - 1`, in the same folder. Image 1 with the same extension is tried first, then image 1 with any other extension. A RedGIFs or unreadable metadata file of the file's own is not replaced by image 1's. If neither file is usable, the file name fallback is used.
+- **Numbering:** `n` is the file name's ` - <n>` suffix and `N` is the number of items in the metadata's `gallery_data.items`.
+
+| Case | Title |
+|---|---|
+| Metadata with `N` of 2 or more | `<post title> [n/N]` (image 1 gets `[1/N]`) |
+| Metadata without `gallery_data` (or deleted), file numbered 1 or more | `<post title> [n]` |
+| File name fallback, file numbered 1 or more | `<title> [n]` |
+| One-item gallery (`N` is 1) | plain title |
+| Suffix ` - 0` (gallery-dl's number for single-image posts) | plain title |
+| No suffix, or a file name not in the format above | plain title |
+
+A post with no title gets no bare number.
 
 ## Behaviour
 
 | Situation | Result | Log level |
 |---|---|---|
-| Several files | uses the first file with a usable metadata file or a matching name | |
+| Several files | uses the first file with a usable metadata file (its own or image 1's) or a matching name | |
 | No usable metadata file and no matching name | `{}` (no update) | info |
 | Metadata file unreadable or not a JSON object | file name fallback | warning |
 | Metadata file holds non-Reddit data (RedGIFs) | file name fallback | debug |
