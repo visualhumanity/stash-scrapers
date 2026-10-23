@@ -193,6 +193,13 @@ def scrape_metadata(meta: dict):
     return scraped
 
 
+def filename_performer(name: str):
+    """A "u_<author>" name gets the same profile URL as the metadata path; other names get none."""
+    if name.startswith("u_") and len(name) > 2:
+        return make_performer(name[2:])
+    return {"name": name}
+
+
 def scrape_filename(path: str):
     """Fallback: title, date and performer from the file name, studio from an r_<subreddit> folder."""
     filename = os.path.splitext(os.path.basename(path))[0]
@@ -203,7 +210,7 @@ def scrape_filename(path: str):
     scraped = {
         "title": title,
         "date": date,
-        "performers": [{"name": performer}],
+        "performers": [filename_performer(performer)],
     }
 
     folder = SUBREDDIT_FOLDER_RE.match(os.path.basename(os.path.dirname(path)))

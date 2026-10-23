@@ -91,7 +91,7 @@ EXAMPLE_STUDIO = {
 EXPECTED = {
     "title": "Example Post",
     "date": "2001-02-03",
-    "performers": [{"name": "u_example_user"}],
+    "performers": [{"name": "u_example_user", "urls": ["https://www.reddit.com/user/example_user"]}],
     "studio": EXAMPLE_STUDIO,
 }
 
@@ -155,7 +155,18 @@ class SceneTests(ScraperTestCase):
 
     def test_performer_ending_in_digits_is_kept(self):
         proc = self.run_scraper("scene", self.scene("Example Post - 2001-02-03 - u_example_user_1234.mp4"))
-        self.assertEqual(self.output(proc)["performers"], [{"name": "u_example_user_1234"}])
+        self.assertEqual(
+            self.output(proc)["performers"],
+            [{"name": "u_example_user_1234", "urls": ["https://www.reddit.com/user/example_user_1234"]}],
+        )
+
+    def test_performer_without_the_u_prefix_gets_no_url(self):
+        proc = self.run_scraper("scene", self.scene("Example Post - 2001-02-03 - example_user.mp4"))
+        self.assertEqual(self.output(proc)["performers"], [{"name": "example_user"}])
+
+    def test_bare_u_prefix_gets_no_url(self):
+        proc = self.run_scraper("scene", self.scene("Example Post - 2001-02-03 - u_.mp4"))
+        self.assertEqual(self.output(proc)["performers"], [{"name": "u_"}])
 
     def test_name_that_does_not_match_is_an_empty_update(self):
         proc = self.run_scraper("scene", self.scene("example clip.mp4"))

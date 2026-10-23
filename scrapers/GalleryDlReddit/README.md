@@ -44,7 +44,7 @@ for example `Example Post - 2001-02-03 - u_example_user.mp4`, or `Example Post -
 |---|---|
 | title | `<title>`, trimmed. File names are sanitized, so this can differ from the post title. |
 | date | `<YYYY-MM-DD>` |
-| performers | one performer named `<performer>` (gallery-dl's `u_<author>`), without a URL |
+| performers | one performer named `<performer>` (gallery-dl's `u_<author>`). A `u_<author>` name gets the profile URL `https://www.reddit.com/user/<author>`, as on the metadata path; any other name gets no URL. |
 | studio | from the folder the file is in, when it is named `r_<subreddit>`: same studio as above |
 
 - The title may itself contain ` - `: the last ` - <YYYY-MM-DD> - ` in the name marks where the title ends.
