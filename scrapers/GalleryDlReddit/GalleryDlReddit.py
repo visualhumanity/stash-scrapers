@@ -46,8 +46,11 @@ def parse_filename(stem: str):
     return m.group("title").strip(), date, m.group("performer").strip()
 
 
-def get_image_path(image_id: str):
-    """Fetch an image's file path from Stash's own GraphQL API (imageByFragment stdin has no path)."""
+def get_image_paths(image_id: str):
+    """
+    Ask Stash's GraphQL API for an image's file paths (older Stash builds send no paths
+    in the imageByFragment input). Returns None when the lookup itself failed.
+    """
     from py_common import graphql
     from py_common.util import dig
 
@@ -60,9 +63,22 @@ def get_image_path(image_id: str):
         }
     }
     """
-    result = graphql.callGraphQL(query, {"id": image_id})
+    try:
+        result = graphql.callGraphQL(query, {"id": image_id})
+    except Exception as e:
+        log.error(f"Image {image_id}: GraphQL lookup failed: {e}")
+        return None
+    if result is None:
+        # py_common has already logged the reason (no URL, bad API key, ...)
+        log.error(f"Image {image_id}: GraphQL lookup failed; check py_common/config.ini")
+        return None
     files = dig(result, "findImage", "visual_files") or []
-    return files[0]["path"] if files else None
+    return [f["path"] for f in files if isinstance(f, dict) and f.get("path")]
+
+
+def input_paths(fragment: dict):
+    """File paths from the scrape input (scenes, and images on newer Stash builds)."""
+    return [f["path"] for f in fragment.get("files") or [] if isinstance(f, dict) and f.get("path")]
 
 
 def scrape_path(path: str):
@@ -78,25 +94,29 @@ def scrape_path(path: str):
     }
 
 
+def run(kind: str, item_id: str, paths):
+    """Scrape from the first path that yields a result."""
+    for path in paths:
+        scraped = scrape_path(path)
+        if scraped:
+            log.info(f"{kind} {item_id}: extracted {scraped} from '{path}'")
+            print(json.dumps(scraped))
+            return
+
+    log.info(f"{kind} {item_id}: no filename matched the expected pattern: {paths}")
+    print(json.dumps({}))
+
+
 def run_scene(fragment: dict):
     scene_id = fragment.get("id", "unknown")
+    paths = input_paths(fragment)
 
-    if not fragment.get("files"):
+    if not paths:
         log.error(f"Scene {scene_id} has no files; cannot extract metadata from filename")
         print("null")
         sys.exit(0)
 
-    path = fragment["files"][0]["path"]
-    if len(fragment["files"]) > 1:
-        log.debug(f"Scene {scene_id} has multiple files; using first: {path}")
-
-    scraped = scrape_path(path)
-    if scraped:
-        log.info(f"Scene {scene_id}: extracted {scraped} from '{path}'")
-        print(json.dumps(scraped))
-    else:
-        log.info(f"Scene {scene_id}: filename did not match expected pattern: '{path}'")
-        print(json.dumps({}))
+    run("Scene", scene_id, paths)
 
 
 def run_image(fragment: dict):
@@ -107,19 +127,18 @@ def run_image(fragment: dict):
         print("null")
         sys.exit(0)
 
-    path = get_image_path(image_id)
-    if not path:
-        log.error(f"Image {image_id}: could not resolve a file path via GraphQL")
-        print(json.dumps({}))
-        return
+    paths = input_paths(fragment)
+    if not paths:
+        paths = get_image_paths(image_id)
+        if paths is None:
+            print(json.dumps({}))
+            return
+        if not paths:
+            log.warning(f"Image {image_id}: Stash returned no files for this image")
+            print(json.dumps({}))
+            return
 
-    scraped = scrape_path(path)
-    if scraped:
-        log.info(f"Image {image_id}: extracted {scraped} from '{path}'")
-        print(json.dumps(scraped))
-    else:
-        log.info(f"Image {image_id}: filename did not match expected pattern: '{path}'")
-        print(json.dumps({}))
+    run("Image", image_id, paths)
 
 
 if __name__ == "__main__":
