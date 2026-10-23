@@ -6,12 +6,12 @@ Actions: `sceneByFragment` and `imageByFragment` (use them from the scene/image 
 
 ## Data sources
 
-For each file of the scene or image, in order, the scraper tries:
+The scraper tries two sources:
 
 1. **The metadata file**: `<media file name>.json` next to the media (for example `clip.mp4` is described by `clip.mp4.json`, written by `gallery-dl --write-metadata`). It is used only when its gallery-dl `category` is `reddit`. A RedGIFs metadata file (`category` `redgifs`), an unreadable one, or one with no usable fields counts as not usable. `<media id>.info.json` files and a folder's `info.json` are never read. Images 2 to N of a gallery post have no metadata file of their own and use image 1's (see [Gallery posts](#gallery-posts)).
 2. **The file name**, when there is no usable metadata file.
 
-The first file that yields a result wins.
+With several files, the metadata files of all of them are tried first, in order, and only then their file names. So an old-format duplicate without a metadata file never beats a file that has one.
 
 ## Metadata file mapping
 
@@ -44,7 +44,7 @@ for example `Example Post - 2001-02-03 - u_example_user.mp4`, or `Example Post -
 |---|---|
 | title | `<title>`, trimmed, plus ` [n]` for gallery files (see [Gallery posts](#gallery-posts)). File names are sanitized, so this can differ from the post title. |
 | date | `<YYYY-MM-DD>` |
-| performers | one performer named `<performer>` (gallery-dl's `u_<author>`). A `u_<author>` name gets the profile URL `https://www.reddit.com/user/<author>`, as on the metadata path; any other name gets no URL. |
+| performers | one performer named `<performer>` (gallery-dl's `u_<author>`). A `u_<author>` name gets the profile URL `https://www.reddit.com/user/<author>`, as on the metadata path; any other name gets no URL. Omitted for `u_[deleted]`. |
 | studio | from the folder the file is in, when it is named `r_<subreddit>`: same studio as above |
 
 - The title may itself contain ` - `: the last ` - <YYYY-MM-DD> - ` in the name marks where the title ends.
@@ -74,7 +74,7 @@ A post with no title gets no bare number.
 
 | Situation | Result | Log level |
 |---|---|---|
-| Several files | uses the first file with a usable metadata file (its own or image 1's) or a matching name | |
+| Several files | the first file with a usable metadata file (its own or image 1's); only if none has one, the first file with a matching name | |
 | No usable metadata file and no matching name | `{}` (no update) | info |
 | Metadata file unreadable or not a JSON object | file name fallback | warning |
 | Metadata file holds non-Reddit data (RedGIFs) | file name fallback | debug |

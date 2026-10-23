@@ -160,6 +160,13 @@ class SceneTests(ScraperTestCase):
             [{"name": "u_example_user_1234", "urls": ["https://www.reddit.com/user/example_user_1234"]}],
         )
 
+    def test_deleted_author_gives_no_performer(self):
+        proc = self.run_scraper("scene", self.scene("Example Post - 2001-02-03 - u_[deleted].mp4"))
+        scraped = self.output(proc)
+        self.assertNotIn("performers", scraped)
+        self.assertEqual(scraped["title"], "Example Post")
+        self.assertEqual(scraped["studio"], EXAMPLE_STUDIO)
+
     def test_performer_without_the_u_prefix_gets_no_url(self):
         proc = self.run_scraper("scene", self.scene("Example Post - 2001-02-03 - example_user.mp4"))
         self.assertEqual(self.output(proc)["performers"], [{"name": "example_user"}])
@@ -422,6 +429,31 @@ class MetadataTests(ScraperTestCase):
         second = self.write_metadata(self.path("abc123 example.mp4"), reddit_metadata())
         self.assertEqual(self.scrape("scene", [first, second]), EXPECTED_FROM_METADATA)
 
+    def test_metadata_on_a_later_file_beats_an_earlier_file_name_match(self):
+        # An old-format duplicate with no metadata file is listed first
+        old = self.path(FILE_NAME)
+        new = self.write_metadata(self.path("abc123 example.mp4"), reddit_metadata())
+        self.assertEqual(self.scrape("scene", [old, new]), EXPECTED_FROM_METADATA)
+
+    def test_image_metadata_on_a_later_file_beats_an_earlier_file_name_match(self):
+        old = self.path("Example Post - 2001-02-03 - u_example_user.jpg")
+        new = self.write_metadata(self.path("abc123 example.jpg"), reddit_metadata())
+        self.assertEqual(self.scrape("image", [old, new]), EXPECTED_FROM_METADATA)
+        self.assertEqual(self.graphql_calls(), [])
+
+    def test_image_lookup_paths_prefer_metadata_too(self):
+        old = self.path("Example Post - 2001-02-03 - u_example_user.jpg")
+        new = self.write_metadata(self.path("abc123 example.jpg"), reddit_metadata())
+        result = {"findImage": {"visual_files": [{"path": old}, {"path": new}]}}
+        proc = self.run_scraper("image", {"id": "7"}, graphql_result=result)
+        self.assertEqual(self.output(proc), EXPECTED_FROM_METADATA)
+
+    def test_file_name_fallback_uses_the_first_matching_file(self):
+        first = self.path("example clip.mp4")
+        second = self.path(FILE_NAME)
+        third = self.path("Other Post - 2002-03-04 - u_other_user.mp4")
+        self.assertEqual(self.scrape("scene", [first, second, third]), EXPECTED)
+
     def test_nothing_usable_is_an_empty_update(self):
         self.assertEqual(self.scrape("scene", [self.path("example clip.mp4")]), {})
 
@@ -461,6 +493,22 @@ class GalleryTests(ScraperTestCase):
     def test_image_1_with_another_extension_is_found(self):
         self.write_metadata(self.path(gallery_name(1, "png")), gallery_metadata(2))
         self.assertEqual(self.scrape(self.path(gallery_name(2, "gif")))["title"], f"{GALLERY_TITLE} [2/2]")
+
+    def test_mixed_extension_gallery_with_brackets_in_the_name(self):
+        # "[18]" is a glob character class unless escaped
+        stem = "Example Post [18] - 2001-02-03 - u_example_user"
+        self.write_metadata(self.path(f"{stem} - 1.png"), gallery_metadata(2, title="Example Post [18]"))
+        scraped = self.scrape(self.path(f"{stem} - 2.jpg"))
+        self.assertEqual(scraped["title"], "Example Post [18] [2/2]")
+        self.assertEqual(scraped["code"], "abc123")
+
+    def test_info_json_next_to_image_2_is_not_used_as_image_1(self):
+        media = self.path(gallery_name(2))
+        os.makedirs(os.path.dirname(media), exist_ok=True)
+        info = self.path("Example Post - 2001-02-03 - u_example_user - 1.info.json")
+        with open(info, "w", encoding="utf-8") as f:
+            json.dump(gallery_metadata(3, title="Wrong Post"), f)
+        self.assertEqual(self.scrape(media), dict(EXPECTED, title="Example Post [2]"))
 
     def test_image_1_in_another_folder_is_not_used(self):
         self.write_metadata(self.path(gallery_name(1), "r_OtherSub"), gallery_metadata(3))

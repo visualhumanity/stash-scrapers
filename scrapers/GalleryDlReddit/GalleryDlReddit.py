@@ -211,8 +211,9 @@ def scrape_filename(path: str):
     scraped = {
         "title": title,
         "date": date,
-        "performers": [filename_performer(performer)],
     }
+    if performer != f"u_{DELETED_AUTHOR}":
+        scraped["performers"] = [filename_performer(performer)]
 
     folder = SUBREDDIT_FOLDER_RE.match(os.path.basename(os.path.dirname(path)))
     if folder:
@@ -289,33 +290,42 @@ def number_title(scraped: dict, number, total):
         scraped["title"] += f" [{number}/{total}]"
 
 
-def scrape_path(path: str):
-    """Returns (scraped, source) for one media file, or (None, None)."""
+def scrape_metadata_path(path: str):
+    """Returns (scraped, source) from a file's metadata file (its own or image 1's), or (None, None)."""
     number = file_number(path)
-
     meta, metadata_path = find_metadata(path, number)
-    if meta is not None:
-        scraped = scrape_metadata(meta)
-        if scraped:
-            number_title(scraped, number, gallery_size(meta))
-            return scraped, f"metadata file '{metadata_path}'"
-        log.debug(f"Metadata file '{metadata_path}' has no usable fields; using the file name")
+    if meta is None:
+        return None, None
 
+    scraped = scrape_metadata(meta)
+    if not scraped:
+        log.debug(f"Metadata file '{metadata_path}' has no usable fields")
+        return None, None
+    number_title(scraped, number, gallery_size(meta))
+    return scraped, f"metadata file '{metadata_path}'"
+
+
+def scrape_filename_path(path: str):
+    """Returns (scraped, source) from a file's name, or (None, None)."""
     scraped = scrape_filename(path)
-    if scraped:
-        number_title(scraped, number, None)
-        return scraped, f"file name '{path}'"
-    return None, None
+    if not scraped:
+        return None, None
+    number_title(scraped, file_number(path), None)
+    return scraped, f"file name '{path}'"
 
 
 def run(kind: str, item_id: str, paths):
-    """Scrape from the first path that yields a result."""
-    for path in paths:
-        scraped, source = scrape_path(path)
-        if scraped:
-            log.info(f"{kind} {item_id}: extracted {scraped} from {source}")
-            print(json.dumps(scraped))
-            return
+    """
+    Metadata files of all paths are tried before any file name, so an old-format
+    duplicate without a metadata file never beats a file that has one.
+    """
+    for scrape in (scrape_metadata_path, scrape_filename_path):
+        for path in paths:
+            scraped, source = scrape(path)
+            if scraped:
+                log.info(f"{kind} {item_id}: extracted {scraped} from {source}")
+                print(json.dumps(scraped))
+                return
 
     log.info(f"{kind} {item_id}: no Reddit metadata file and no file name matching the expected pattern: {paths}")
     print(json.dumps({}))
