@@ -95,14 +95,23 @@ Where an image's file paths come from depends on the Stash build:
 
 1. Add this repository's scraper source index in Stash under Settings > Metadata Providers > Available Scrapers, then install **VH - Reddit (Gallery-DL)** and its dependency **py_common**.
 2. **Scenes need nothing else.** Neither do images on Stash builds that pass image file paths.
-3. **Images on older Stash builds need a `py_common` config.** Create or edit `py_common/config.ini` inside Stash's scrapers folder (`scrapers/py_common/config.ini` under your Stash configuration directory) and set:
+3. **Images on older Stash builds need a `py_common` config.** Edit `config.ini` in the `py_common` folder this scraper imports: with the Community source's default local path that is `scrapers/community/py_common/config.ini` under your Stash configuration directory (not `scrapers/py_common/`). `py_common` reads the file next to its own code, so it is the copy installed with the **py_common** package. Set:
 
    ```ini
    url = http://localhost:9999
    api_key = <your Stash API key>
    ```
 
-   Generate the key under Settings > Security > Authentication. `py_common` creates this file with an empty `api_key` the first time an image is scraped. If the key is missing or wrong, `py_common` logs an error naming `config.ini`, the scraper logs "lookup failed" and returns no update.
+   Generate the key under Settings > Security > Authentication. `py_common` creates this file, with `url = http://localhost:9999` and an empty `api_key`, the first time an image is scraped.
+
+   To confirm the path, set Stash's log level to Debug (Settings > System > Logging), scrape one image, then open Settings > Logs with the Debug filter. `py_common` logs one of:
+
+   ```
+   [py_common/graphql.py] First run, creating default config at <path>/config.ini
+   [py_common/graphql.py] Reading config from <path>/config.ini
+   ```
+
+   That `<path>` is the file to edit. If the key is missing or wrong, `py_common` logs an error naming `config.ini`, the scraper logs "lookup failed" and returns no update.
 
 ## Tests
 
