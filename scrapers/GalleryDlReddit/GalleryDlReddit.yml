@@ -1,5 +1,6 @@
 name: VH - Reddit (Gallery-DL)
 # requires: py_common
+# ignore: test_GalleryDlReddit.py README.md
 
 sceneByFragment:
   action: script
@@ -14,4 +15,4 @@ imageByFragment:
     - python
     - GalleryDlReddit.py
     - image
-# Last Updated 2026-07-27
+# Last Updated 2026-10-23

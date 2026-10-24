@@ -46,14 +46,23 @@ A missing `TZ` or an unknown time zone is not an error: the scraper quietly uses
 
 1. Add this repository's scraper source index in Stash under Settings > Metadata Providers > Available Scrapers, then install **VH - Gallery-DL - Twitter** and its dependency **py_common**. The container needs Python 3 with `tzdata` for the time zone conversion.
 2. **Scenes need nothing else.**
-3. **Images need a `py_common` config.** Stash does not give an image scraper the file path (only the image ID), so the scraper asks Stash's GraphQL API for it, using `py_common`. Create or edit `py_common/config.ini` inside Stash's scrapers folder (`scrapers/py_common/config.ini` under your Stash configuration directory) and set only what this scraper depends on:
+3. **Images need a `py_common` config.** Stash does not give an image scraper the file path (only the image ID), so the scraper asks Stash's GraphQL API for it, using `py_common`. Edit `config.ini` in the `py_common` folder this scraper imports: with the Community source's default local path that is `scrapers/community/py_common/config.ini` under your Stash configuration directory (not `scrapers/py_common/`). `py_common` reads the file next to its own code, so it is the copy installed with the **py_common** package. Set only what this scraper depends on:
 
    ```ini
    url = http://localhost:9999
    api_key = <your Stash API key>
    ```
 
-   Generate the key under Settings > Security > Authentication. `py_common` creates this file with an empty `api_key` the first time an image is scraped. If the key is missing or wrong, `py_common` logs an error naming `config.ini` and the scraper returns no update.
+   Generate the key under Settings > Security > Authentication. `py_common` creates this file, with `url = http://localhost:9999` and an empty `api_key`, the first time an image is scraped.
+
+   To confirm the path, set Stash's log level to Debug (Settings > System > Logging), scrape one image, then open Settings > Logs with the Debug filter. `py_common` logs one of:
+
+   ```
+   [py_common/graphql.py] First run, creating default config at <path>/config.ini
+   [py_common/graphql.py] Reading config from <path>/config.ini
+   ```
+
+   That `<path>` is the file to edit. If the key is missing or wrong, `py_common` logs an error naming `config.ini` and the scraper returns no update.
 
 ## Tests
 
