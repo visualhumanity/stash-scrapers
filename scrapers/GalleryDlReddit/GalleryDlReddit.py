@@ -28,6 +28,11 @@ DELETED_AUTHOR = "[deleted]"
 # Folder gallery-dl Reddit downloads are filed under, e.g. ".../r_ExampleSub/<file>"
 SUBREDDIT_FOLDER_RE = re.compile(r"^r_(?P<subreddit>.+)$")
 
+# Longest text value written into one log line. Stash 0.31.1 reads scraper stderr with a
+# 64 KiB line limit and closes the pipe on a longer line, which kills the scraper before
+# it prints its result; post text alone can be 160 KB in UTF-8.
+LOG_VALUE_LIMIT = 80
+
 # gallery-dl Reddit filenames: "<title> - <YYYY-MM-DD> - <performer>[ - <index>].<ext>"
 # The trailing " - <index>" is only present on multi-file posts (galleries); single-file
 # posts (e.g. a lone video) omit it, so it must be optional.
@@ -60,6 +65,21 @@ def parse_filename(stem: str):
     return m.group("title").strip(), date, m.group("performer").strip()
 
 
+def short(value) -> str:
+    """A value for a log line: text cut to LOG_VALUE_LIMIT characters, with its full length."""
+    text_value = str(value)
+    if len(text_value) <= LOG_VALUE_LIMIT:
+        return text_value
+    return f"{text_value[:LOG_VALUE_LIMIT]}... ({len(text_value)} chars)"
+
+
+def describe(scraped: dict) -> str:
+    """Field names, with short text values quoted, for the success log line."""
+    return ", ".join(
+        f"{key} {short(value)!r}" if isinstance(value, str) else key for key, value in scraped.items()
+    )
+
+
 def get_image_paths(image_id: str):
     """
     Ask Stash's GraphQL API for an image's file paths (older Stash builds send no paths
@@ -80,7 +100,7 @@ def get_image_paths(image_id: str):
     try:
         result = graphql.callGraphQL(query, {"id": image_id})
     except Exception as e:
-        log.error(f"Image {image_id}: GraphQL lookup failed: {e}")
+        log.error(f"Image {image_id}: GraphQL lookup failed: {short(e)}")
         return None
     if result is None:
         # py_common has already logged the reason (no URL, bad API key, ...)
@@ -107,14 +127,14 @@ def load_metadata(media_path: str):
     except FileNotFoundError:
         return None
     except (OSError, ValueError) as e:
-        log.warning(f"Could not read metadata file '{path}': {e}")
+        log.warning(f"Could not read metadata file '{path}': {short(e)}")
         return None
 
     if not isinstance(meta, dict):
         log.warning(f"Metadata file '{path}' is not a JSON object")
         return None
     if meta.get("category") != "reddit":
-        log.debug(f"Metadata file '{path}' holds {meta.get('category')!r} data, not Reddit; using the file name")
+        log.debug(f"Metadata file '{path}' holds {short(meta.get('category'))!r} data, not Reddit; using the file name")
         return None
     return meta
 
@@ -323,7 +343,7 @@ def run(kind: str, item_id: str, paths):
         for path in paths:
             scraped, source = scrape(path)
             if scraped:
-                log.info(f"{kind} {item_id}: extracted {scraped} from {source}")
+                log.info(f"{kind} {item_id}: extracted {describe(scraped)} from {source}")
                 print(json.dumps(scraped))
                 return
 

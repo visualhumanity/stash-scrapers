@@ -454,6 +454,20 @@ class MetadataTests(ScraperTestCase):
         third = self.path("Other Post - 2002-03-04 - u_other_user.mp4")
         self.assertEqual(self.scrape("scene", [first, second, third]), EXPECTED)
 
+    def test_long_post_text_keeps_log_lines_short(self):
+        # Stash 0.31.1 reads scraper stderr with a 64 KiB line limit and closes the pipe
+        # on a longer line, which kills the scraper before it prints its result
+        selftext = "\U0001f525" * 40000  # 160 KB in UTF-8
+        title = "Example Post " + "x" * 5000
+        media = self.write_metadata(self.path(FILE_NAME), reddit_metadata(selftext=selftext, title=title))
+        proc = self.run_scraper("scene", {"id": "1", "files": [{"path": media}]})
+        scraped = self.output(proc)
+        self.assertEqual(scraped["details"], selftext)
+        self.assertEqual(scraped["title"], title)
+        self.assertIn("\x01i\x02", proc.stderr)
+        for line in proc.stderr.splitlines():
+            self.assertLess(len(line.encode("utf-8")), 1024, line[:100])
+
     def test_nothing_usable_is_an_empty_update(self):
         self.assertEqual(self.scrape("scene", [self.path("example clip.mp4")]), {})
 
