@@ -1,25 +1,42 @@
-# Template for creating Stash scrapers source index
+# Stash Scrapers
 
-This template allows you to create a new repository with a few clicks with preconfigured GitHub action to publish your scrapers source index. 
-_This assumes you already know how to create scrapers for Stash. If you don't, first read [this](https://docs.stashapp.cc/in-app-manual/scraping/scraperdevelopment/)._
+Scrapers for [Stash](https://github.com/stashapp/stash), published as source indexes you can add to your Stash instance.
 
-## How to use it?
+## Install
 
-1. Click **Use this template** > **Create a new repository**. 
-1. Choose a repository name and click **Create repository**.
-1. Open **Settings** and head to **Pages**.
-1. Under Build and deployment select the Source as GitHub Actions.
+| Index | Branch | URL |
+|---|---|---|
+| Production | `main` | [https://visualhumanity.github.io/stash-scrapers/main/index.yml](https://visualhumanity.github.io/stash-scrapers/main/index.yml) |
+| Develop | `develop` | [https://visualhumanity.github.io/stash-scrapers/develop/index.yml](https://visualhumanity.github.io/stash-scrapers/develop/index.yml) |
 
-Now add your scrapers to [scrapers](/scrapers) directory and they will be automatically published to the source index.
+In Stash, go to **Settings > Metadata Providers** and add the production index URL as a source. The develop index holds pre-release builds for testing. Scrapers that need `py_common` get it from Stash's default Community (stable) source.
 
-Source index URL: [`https://visualhumanity.github.io/stash-scrapers/main/index.yml`](https://visualhumanity.github.io/stash-scrapers/main/index.yml)
-Pre-release source index URL (`develop` branch): [`https://visualhumanity.github.io/stash-scrapers/develop/index.yml`](https://visualhumanity.github.io/stash-scrapers/develop/index.yml)
+## Scrapers
 
-## Share your scrapers
+| Scraper | Description |
+|---|---|
+| [VH - Convert HTML to Markdown](scrapers/ConvertHtmlToMarkdown/) | Converts an HTML scene description into Markdown, keeping links. Plain-text descriptions are left alone. |
+| [VH - Extract Date from Filename](scrapers/DateFromFilename/) | Sets a scene's date from the video file's name, including written-out and partial dates in several languages. |
+| [VH - File Metadata (ffprobe)](scrapers/FileMetadata/) | Reads title, URL, description, date and performer from a video file's embedded metadata with ffprobe. |
+| [VH - Reddit (Gallery-DL)](scrapers/GalleryDlReddit/) | Fills scenes and images from the gallery-dl Reddit metadata file next to each file, falling back to the file name. |
+| [VH - Gallery-DL - Twitter](scrapers/GalleryDlTwitter/) | Fills scenes and images from the gallery-dl Twitter metadata file next to each file. |
+| [VH - Gay Erotic Video Index (GEVI)](scrapers/GEVI/) | Scrapes performers, scenes and groups from gayeroticvideoindex.com by URL. |
+| [VH - OF-Scraper - User Data](scrapers/OFScraperUserData/) | Fills scenes from OF-Scraper's per-account database: title, date, performers, studio, URL and description. |
+| [VH - OnlyFans](scrapers/OnlyFans/) | Scrapes performers and studios from an OnlyFans URL. |
+| [VH - Twitter](scrapers/Twitter/) | Scrapes performers from Twitter, by profile URL or by name. |
+| [VH - Title From Performers](scrapers/vhTitleFromPerformers/) | Sets a scene's title from its performers, for example `A & B`. |
 
-- [Create a new topic](https://discourse.stashapp.cc/t/-/146) for your scraper on the community forum.
-- [Add your source index to the list](https://discourse.stashapp.cc/t/-/834) on the Stash community forum.
+Scrapers have no hand-set version. Each index shows the git short hash of the scraper's last commit.
+
+## Development
+
+- `develop` is the integration branch. Every push publishes the develop index, for testing on a test Stash instance.
+- `main` is the release branch. It publishes the production index.
+- Flow: feature branch, PR into `develop`, install from the develop index and test, then a release PR from `develop` into `main`.
+- Every push to either branch rebuilds and republishes both indexes.
+- No version bumps: the index version updates itself on every commit that touches a scraper.
+- Full rules for agents and maintainers: [`CLAUDE.md`](CLAUDE.md).
 
 ## License
 
-The default license is set to [AGPL-3.0](/LICENCE). Before publishing any scrapers you can change it.
+[AGPL-3.0](LICENCE)
