@@ -26,7 +26,7 @@ Spelling is US, as in Stash. Field names, keys, action names and UI labels are q
 
 When restructuring an existing README, move and trim its content rather than rewriting it. A "Behavior" section or log-level table splits by audience: user-visible rules go to Field notes or a free section, failure cases a user can hit to Known limitations, internals and logging detail to Development.
 
-All examples are synthetic (`Example Scene`, `/data/example/video.mp4`): no real titles, names, usernames, hosts or paths outside the repo.
+All examples are synthetic (`Example Scene`, `/data/example/video.mp4`): no real titles, names, hosts or paths outside the repo.
 
 This is guidance, not a template. Agents may add free sections, adjust wording and trim content without amending this ADR. Only a change to whether READMEs exist, where they live, when they are kept current, or the anchor headings needs a new ADR.
 
