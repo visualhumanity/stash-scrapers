@@ -9,7 +9,7 @@ EXCLUDED = {"community", "automatic_dependencies"}
 
 
 class ReadmePresenceTest(unittest.TestCase):
-    # ADR 0002: every scraper has a README.md in its own folder.
+    # docs/adr/0002-scraper-readme-structure.md: every scraper has a README.md in its own folder.
     def test_every_scraper_folder_has_readme(self):
         # Skip caches and hidden folders (__pycache__, .pytest_cache), which aren't scrapers
         folders = sorted(
