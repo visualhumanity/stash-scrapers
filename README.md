@@ -11,6 +11,30 @@ Scrapers for [Stash](https://github.com/stashapp/stash), published as source ind
 
 In Stash, go to **Settings > Metadata Providers** and add the production index URL as a source. The develop index holds pre-release builds for testing. Scrapers that need `py_common` get it from Stash's default Community (stable) source.
 
+### Configure py_common
+
+Scrapers that ask Stash's GraphQL API for data Stash does not pass them (for example an image's file path) do so through `py_common`, which reads the Stash URL and API key from its `config.ini`. A scraper whose README links here needs this step.
+
+1. Find the file. It sits in the `py_common` folder itself, next to `py_common`'s own code. With the Community source's default local path that is `scrapers/community/py_common/config.ini` under your Stash configuration directory (not `scrapers/py_common/`). `py_common` creates it, with `url = http://localhost:9999` and an empty `api_key`, the first time a scraper that uses it runs.
+2. Set:
+
+   ```ini
+   url = http://localhost:9999
+   api_key = <your Stash API key>
+   ```
+
+   `url` is always needed. `api_key` is needed when Stash authentication is on; generate it under Settings > Security > Authentication. `py_common` also needs the Python `requests` package wherever Stash runs scrapers.
+3. To confirm the path, set Stash's log level to Debug (Settings > System > Logging), run the scrape once, then open Settings > Logs with the Debug filter. `py_common` logs one of:
+
+   ```
+   [py_common/graphql.py] First run, creating default config at <path>/config.ini
+   [py_common/graphql.py] Reading config from <path>/config.ini
+   ```
+
+   That `<path>` is the file to edit.
+
+If the URL or key is missing or wrong, `py_common` logs an error naming `config.ini` (for example "Unable to authenticate with Stash: you need to set the API Key in 'config.ini' in the 'py_common' folder") and the scraper returns no update.
+
 ## Scrapers
 
 | Scraper | Description |
