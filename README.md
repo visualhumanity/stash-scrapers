@@ -23,7 +23,7 @@ Scrapers that ask Stash's GraphQL API for data Stash does not pass them (for exa
    api_key = <your Stash API key>
    ```
 
-   `url` is always needed. `api_key` is needed when Stash authentication is on; generate it under Settings > Security > Authentication. `py_common` also needs the Python `requests` package wherever Stash runs scrapers.
+   `url` must point to your Stash server. `api_key` is needed when Stash authentication is on; generate it under Settings > Security > Authentication. `py_common` also needs the Python `requests` package wherever Stash runs scrapers.
 3. To confirm the path, set Stash's log level to Debug (Settings > System > Logging), run the scrape once, then open Settings > Logs with the Debug filter. `py_common` logs one of:
 
    ```
@@ -33,7 +33,7 @@ Scrapers that ask Stash's GraphQL API for data Stash does not pass them (for exa
 
    That `<path>` is the file to edit.
 
-If the URL or key is missing or wrong, `py_common` logs an error naming `config.ini` (for example "Unable to authenticate with Stash: you need to set the API Key in 'config.ini' in the 'py_common' folder") and the scraper returns no update.
+An empty `url`, a missing or wrong key (Stash answers 401) or a wrong URL path (404) makes `py_common` log an error naming `config.ini`, for example "Unable to authenticate with Stash: you need to set the API Key in 'config.ini' in the 'py_common' folder". A host that can't be reached, or any other error from Stash, fails the scrape with a Python error in the log instead.
 
 ## Scrapers
 
