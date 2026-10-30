@@ -15,7 +15,7 @@ The scene's current description is read and rewritten in place. It counts as HTM
 - `<h1>` to `<h6>` become `#` to `######` headings.
 - `<ul>` items become `- ` lines, `<ol>` items become `1. `, `2. ` lines.
 - `<blockquote>` becomes a `> ` line.
-- `<p>` and `<div>` become paragraphs separated by a blank line; `<br>` becomes a line break.
+- `<p>` and `<div>` become paragraphs separated by a blank line; `<br>` becomes a newline.
 - Other tags are removed and their text kept. Entities such as `&amp;` are decoded, and runs of spaces and line breaks inside text collapse to one space.
 
 ## Known limitations
@@ -31,6 +31,6 @@ The scene's current description is read and rewritten in place. It counts as HTM
 
 ## Development
 
-- `html_to_markdown()` streams the description through the standard library's `HTMLParser`; `looks_like_html()` decides whether to convert. No packages beyond `py_common` are needed.
+- `html_to_markdown()` streams the description through the standard library's `HTMLParser`; `looks_like_html()` decides whether to convert.
 - `OFScraperUserData` imports both functions from this folder to convert its descriptions, so a change here changes its output too.
 - Tests: `python3 -B -m unittest -v` from this folder. They cover the converter directly and run the script as a subprocess for the input and output checks; they never contact Stash.
