@@ -33,7 +33,7 @@ A field with nothing to fill is left out, so the scraper never blanks a value se
 
 ## Known limitations
 
-- A media file with no metadata file, or an unreadable one, gives no update. An unreadable or non-JSON metadata file logs a warning.
+- A media file with no metadata file, or an unreadable one, gives no update. An unreadable metadata file, or one that is not a JSON object, logs a warning.
 - Without time zone data for the fallback zone, the date is left out with a warning.
 - A scene with no files fails the scrape. So does an image scrape input with no ID.
 - An image whose GraphQL lookup fails, or for which Stash returns no files, gives no update.
