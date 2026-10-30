@@ -9,7 +9,6 @@ Scrapes a performer or a studio from an OnlyFans profile URL, such as `https://o
 
 ## Field notes
 
-- **details**: the profile's bio.
 - **image**: the performer gets the profile picture. The studio gets the profile header image, or the profile picture when there is no header.
 - **urls**: `https://onlyfans.com/<username>`, with anything after the username in the scraped URL dropped.
 
