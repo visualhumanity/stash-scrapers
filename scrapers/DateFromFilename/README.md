@@ -39,11 +39,12 @@ Only the file name is read, without its extension. Folder names are ignored. All
 - `Feb 25` gives nothing, since `25` could be a day. Write `Feb '25` or `Feb 2025`.
 - Timestamps before 2000 or in the future are ignored, as are timestamps in the middle of the name or in brackets.
 - French and Spanish ordinals are allowed only on the first of the month: `1er mars 2025` works, `2er mars 2025` gives nothing.
+- Without Python time zone data (from the system or the [`tzdata`](https://pypi.org/project/tzdata/) package), timestamps are skipped with a warning.
 - Only the scene's first file is read.
 - When nothing is found, the scene is left unchanged.
 
 ## Development
 
+- Tests: `python3 -B -m unittest -v` from this folder. They use made-up file names and run the script as a subprocess for the input and output checks; they never contact Stash.
 - `parse_date()` collects candidates from every format, then applies the precedence under Field notes. Each language is a `Language` object with its month words, ordinals and connector words.
 - When nothing is found, an Info log line names the leftmost candidate that was skipped and why.
-- Tests: `python3 -B -m unittest -v` from this folder. They use made-up file names and run the script as a subprocess for the input and output checks; they never contact Stash.

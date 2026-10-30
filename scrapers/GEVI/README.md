@@ -62,5 +62,6 @@ The length and date GEVI appends to a scene's title (`18m 1/2/2001`) are dropped
 
 ## Development
 
-- Tests: `python3 -B -m unittest -v` from this folder. They feed made-up HTML that mirrors GEVI's page structure through a mocked `requests.get`; they never contact GEVI or Stash. `py_common` installs `requests` and `beautifulsoup4` on first run if they are missing.
+- Tests: `python3 -B -m unittest -v` from this folder. They feed made-up HTML that mirrors GEVI's page structure through a mocked `requests.get`; they never contact GEVI or Stash.
 - The top/bottom markers come from GEVI's action codes (such as `OgrAtRg`): only the anal `t` and `b` flags are read. See `role_marker()`.
+- `py_common` installs `requests` and `beautifulsoup4` on first run if they are missing.

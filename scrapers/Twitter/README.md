@@ -29,5 +29,6 @@ Scrape by name looks up the exact handle typed, with or without a leading `@` (`
 
 ## Development
 
-- One call to the X API v2 endpoint `users/by/username/<handle>`, asking for `name`, `description` and `profile_image_url`.
 - No tests.
+- One call to the X API v2 endpoint `users/by/username/<handle>`, asking for `name`, `description` and `profile_image_url`.
+- `py_common` installs `requests` on first run if it is missing.

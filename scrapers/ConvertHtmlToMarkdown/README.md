@@ -31,6 +31,6 @@ The scene's current description is read and rewritten in place. It counts as HTM
 
 ## Development
 
+- Tests: `python3 -B -m unittest -v` from this folder. They cover the converter directly and run the script as a subprocess for the input and output checks; they never contact Stash.
 - `html_to_markdown()` streams the description through the standard library's `HTMLParser`; `looks_like_html()` decides whether to convert.
 - `OFScraperUserData` imports both functions from this folder to convert its descriptions, so a change here changes its output too.
-- Tests: `python3 -B -m unittest -v` from this folder. They cover the converter directly and run the script as a subprocess for the input and output checks; they never contact Stash.

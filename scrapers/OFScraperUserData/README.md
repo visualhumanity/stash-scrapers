@@ -57,7 +57,7 @@ OnlyFans posts have no titles, so the title is inferred from the description:
 ## Field notes
 
 - **title**: see [Title inference](#title-inference).
-- **date**: `created_at` of the post, message or story, converted from UTC to the container time zone (see [Configuration](#configuration)).
+- **date**: `created_at` of the post, message or story, converted from UTC to the time zone in the `TZ` environment variable of the Stash process (see [Configuration](#configuration)).
 - **urls**: `https://onlyfans.com/<post id>/<username>`, for posts only (timeline, archived, pinned, paid); none for messages and stories.
 - **details**: the full post text, converted from HTML to Markdown by [VH - Convert HTML to Markdown](../ConvertHtmlToMarkdown/). Relative links (`/name`) become `https://onlyfans.com/name`; plain text is left as is.
 - **performers**: the display name from the model folder name, plus every account mentioned in the description: `@name`, `href="/name"` and `onlyfans.com/name` (leading `@` stripped, duplicates and the account's own username dropped). Add the usernames as performer aliases in Stash so they resolve to existing performers.
@@ -65,7 +65,7 @@ OnlyFans posts have no titles, so the title is inferred from the description:
 
 ## Configuration
 
-- Set `TZ` on the Stash container. Without it the scraper falls back to a zone set in the script.
+- Set the `TZ` environment variable in the environment Stash runs in (for Docker, the container's environment). Without it, the scraper falls back to a zone set in the script.
 
 ## Known limitations
 
@@ -76,4 +76,4 @@ OnlyFans posts have no titles, so the title is inferred from the description:
 
 ## Development
 
-- Tests: `python3 -B -m unittest -v` from this folder (needs the sibling `ConvertHtmlToMarkdown` folder). They build fake download roots with synthetic databases.
+- Tests: `python3 -B -m unittest -v` from this folder (needs the sibling `ConvertHtmlToMarkdown` folder). They build fake download roots with synthetic databases; they never contact Stash.

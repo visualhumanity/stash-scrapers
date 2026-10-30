@@ -44,7 +44,7 @@ Add **VH - Title From Performers** as a source. With Identify's default field st
 ## Known limitations
 
 - A scene with 0 or 1 performers gets no title, and its existing title is left alone. An Info line is logged.
-- When the Stash API can't be reached, the URL or API key in `config.ini` is wrong, or the scene is not found, the scrape fails with an error in the log. The title is left alone.
+- When the Stash API cannot be reached, the URL or API key in `config.ini` is wrong, or the scene is not found, the scrape fails with an error in the log. The title is left alone.
 
 ## Development
 

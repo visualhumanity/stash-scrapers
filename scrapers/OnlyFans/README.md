@@ -26,5 +26,6 @@ Scrapes a performer or a studio from an OnlyFans profile URL, such as `https://o
 
 ## Development
 
-- The profile is read from the page's embedded Next.js data (`__NEXT_DATA__`), falling back to its OpenGraph `og:` tags, which have no header image.
 - No tests.
+- The profile is read from the page's embedded Next.js data (`__NEXT_DATA__`), falling back to its OpenGraph `og:` tags, which have no header image.
+- `py_common` installs `requests` and `lxml` on first run if they are missing.

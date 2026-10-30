@@ -33,7 +33,7 @@ Scrapers that ask Stash's GraphQL API for data Stash does not pass them (for exa
 
    That `<path>` is the file to edit.
 
-An empty `url`, a missing or wrong key (Stash answers 401) or a wrong URL path (404) makes `py_common` log an error naming `config.ini`, for example "Unable to authenticate with Stash: you need to set the API Key in 'config.ini' in the 'py_common' folder". A host that can't be reached, or any other error from Stash, fails the scrape with a Python error in the log instead.
+An empty `url`, a missing or wrong key (Stash answers 401) or a wrong URL path (404) makes `py_common` log an error naming `config.ini`, for example "Unable to authenticate with Stash: you need to set the API Key in 'config.ini' in the 'py_common' folder". A host that cannot be reached, or any other error from Stash, fails the scrape with a Python error in the log instead.
 
 ## Scrapers
 
