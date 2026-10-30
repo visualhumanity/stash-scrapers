@@ -41,7 +41,7 @@ An empty `url`, a missing or wrong key (Stash answers 401) or a wrong URL path (
 |---|---|
 | [VH - Convert HTML to Markdown](scrapers/ConvertHtmlToMarkdown/) | Converts an HTML scene description into Markdown, keeping links. Plain-text descriptions are left alone. |
 | [VH - Extract Date from Filename](scrapers/DateFromFilename/) | Sets a scene's date from the video file's name, including written-out and partial dates in several languages. |
-| [VH - File Metadata (ffprobe)](scrapers/FileMetadata/) | Reads title, URL, description, date and performer from a video file's embedded metadata with ffprobe. |
+| [VH - File Metadata (ffprobe)](scrapers/FileMetadata/) | Reads title, URL, description, date, performer and studio from a video file's embedded metadata with ffprobe. |
 | [VH - Reddit (Gallery-DL)](scrapers/GalleryDlReddit/) | Fills scenes and images from the gallery-dl Reddit metadata file next to each file, falling back to the file name. |
 | [VH - Gallery-DL - Twitter](scrapers/GalleryDlTwitter/) | Fills scenes and images from the gallery-dl Twitter metadata file next to each file. |
 | [VH - Gay Erotic Video Index (GEVI)](scrapers/GEVI/) | Scrapes performers, scenes and groups from gayeroticvideoindex.com by URL. |
