@@ -51,11 +51,9 @@ From a metadata file:
 - **title**: the exact post title, numbered for gallery posts (see [Gallery posts](#gallery-posts)).
 - **date**: the post's UTC date, from `date`, else `created_utc`. gallery-dl's `date` is `created_utc` written as UTC `YYYY-MM-DD HH:MM:SS`, the same date gallery-dl puts in file names, so no time zone conversion is done.
 - **urls**: `https://www.reddit.com` plus the post's `permalink`.
-- **code**: the post ID.
-- **details**: the post text (`selftext`).
 - **performers**: one performer named `u_<author>` (the same name a file name gives), with URL `https://www.reddit.com/user/<author>`. Left out for `[deleted]` authors.
 - **studio**: `r/<subreddit>` with URL `https://www.reddit.com/r/<subreddit>` and parent studio `Reddit`.
-- **tags**: the post flair (`link_flair_text`) as one tag, as written.
+- **tags**: the post flair (`link_flair_text`) as one tag, as written (numbers included).
 
 A field with nothing to fill is left out, so the scraper never blanks a value set by hand.
 
