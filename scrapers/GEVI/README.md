@@ -58,7 +58,6 @@ The length and date GEVI appends to a scene's title (`18m 1/2/2001`) are dropped
 ## Known limitations
 
 - A page that cannot be fetched (an HTTP error or no answer in 10 seconds) logs an error and gives no result.
-- Scene by URL scrapes the whole movie. Splitting a movie into its scenes is not supported.
 - A value GEVI gives only in imperial units (inches, pounds) is left out.
 
 ## Development
