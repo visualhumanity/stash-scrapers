@@ -1,69 +1,44 @@
-# Gallery-DL - Twitter
+# VH - Gallery-DL - Twitter
 
-Fills in a Stash **scene** or **image** from the [gallery-dl](https://github.com/mikf/gallery-dl) JSON sidecar that sits next to a downloaded Twitter/X media file. Galleries and groups are not supported.
+Fills a scene or an image from the [gallery-dl](https://github.com/mikf/gallery-dl) metadata file next to a downloaded Twitter/X media file. Nothing is fetched from Twitter.
 
-It reads `<media file>.json` (for example `clip.mp4` is described by `clip.mp4.json`, written by `gallery-dl --write-metadata`). The `<cdn key>.info.json` duplicates and the per-directory `info.json` are ignored. Nothing is fetched from Twitter.
+Requires: Python time zone data where Stash runs scrapers, from the system or the [`tzdata`](https://pypi.org/project/tzdata/) package.
 
-Actions: `sceneByFragment` and `imageByFragment` (use them from the scene/image "Scrape with..." menu or the Identify task).
+## Supports
 
-## What it fills in
+- **Scene** (by fragment): title, details, date, code, urls, performers, studio, tags
+- **Image** (by fragment): the same fields
 
-Scenes and images get the same fields:
+Not filled: cover image, director, photographer, groups, alt text (`description`), reply, quote and retweet info, language, the sensitive flag, like and view counts.
 
-| Stash field | Sidecar source | Rule |
-|---|---|---|
-| title | `content`, `num`, `count` | First non-empty line of the caption, trimmed. If the tweet has more than one media item (`count > 1`), ` [i]` is appended, where `i` is `num`. The whole title is capped at 120 characters: the caption is cut at a word boundary and ends in `…`, leaving room for the suffix. No caption means no title (and no suffix). |
-| details | `content` | The full caption, trimmed, emoji kept. Omitted when empty. |
-| date | `date` | gallery-dl dates are UTC. Converted to the container's own `TZ` (America/Toronto if `TZ` is unset or unknown), then written as `YYYY-MM-DD`. |
-| code | `tweet_id` | The tweet ID as plain text. Tweet IDs are time-ordered, so sorting by code is chronological, except that Stash sorts the code as text, so an ID with fewer digits sorts before a longer one. |
-| urls | `tweet_id` + poster handle | One permalink: `https://twitter.com/<handle>/status/<tweet_id>`. Without a handle: `https://twitter.com/i/status/<tweet_id>`. |
-| performers | `author.name`, else `user.name` | One performer named by the poster handle, with `https://twitter.com/<handle>` as its URL. No aliases. |
-| studio | same handle | A studio named by the poster handle, with the same profile URL. |
-| tags | `hashtags` | Each hashtag as given (without `#`), de-duplicated case-insensitively. Omitted when the post has none. No fixed tags are added. |
+## Metadata files
 
-Fields with nothing to say are left out entirely. The scraper never sends an empty string or list, so it cannot blank out a value you set by hand.
+The scraper reads `<media file>.json`, written by `gallery-dl --write-metadata`: `clip.mp4` is described by `clip.mp4.json`. The `<cdn key>.info.json` duplicates and a folder's `info.json` are ignored. With several files, the first file that has a metadata file is used. Metadata files for profile pictures and banners (`subcategory` `avatar` or `background`) are not posts and give no update.
 
-Not mapped: cover image, director, photographer, groups, alt text (`description`), reply/quote/retweet info, language, the sensitive flag and the like/view counts.
+## Field notes
 
-Stash links a scraped performer or studio to an existing one only by exact name, then exact alias. Handles rarely match real-name performers, so expect new entries unless you add the handle as an alias. Identify only creates them if "create missing" is on for that type.
+- **title**: the first non-empty line of the caption. When the tweet has more than one media item, ` [i]` is appended, `i` being the item's `num`. The whole title is capped at 120 characters: the caption is cut at a word boundary and ends in `…`, leaving room for the suffix. No caption means no title.
+- **details**: the full caption, emoji kept.
+- **date**: gallery-dl dates are UTC. The date is converted to the time zone in the `TZ` environment variable of the Stash process, or to a fallback zone set in the script when `TZ` is unset or unknown, then written as `YYYY-MM-DD`. Near midnight, the day depends on that zone.
+- **code**: the tweet ID. Tweet IDs are time-ordered, but Stash sorts the code as text, so an ID with fewer digits sorts before a longer one.
+- **urls**: `https://twitter.com/<handle>/status/<tweet_id>`, or `https://twitter.com/i/status/<tweet_id>` without a handle.
+- **performers** and **studio**: both named after the poster's handle (`author.name`, else `user.name`), with `https://twitter.com/<handle>` as their URL. Stash links a scraped performer or studio to an existing one only by exact name, then exact alias, so expect new entries unless the handle is an alias. Identify creates them only when "Create missing" is on for that type.
+- **tags**: the hashtags, without `#`, de-duplicated in any letter case. No fixed tags are added.
 
-## Behaviour
+A field with nothing to fill is left out, so the scraper never blanks a value set by hand.
 
-| Situation | Result | Log level |
-|---|---|---|
-| No sidecar next to the file | `{}` (no update) | debug |
-| Avatar or background sidecar (not a post) | `{}` | debug |
-| Sidecar is unreadable or not valid JSON | `{}` | warning |
-| Scene has no files | `null` | error |
-| Image: Stash returns no files for it | `{}` | warning |
-| Several files | uses the first file that has a sidecar | |
-| A field is missing from the sidecar | only that field is left out | |
-| Success | the fields above | one info line naming the sidecar |
+## Configuration
 
-A missing `TZ` or an unknown time zone is not an error: the scraper quietly uses America/Toronto and only logs at debug level.
+- Images need `py_common` set up as in the root README's [Install section](../../README.md#configure-py_common): Stash passes an image scraper only the image ID, so the scraper asks Stash's GraphQL API for the file path. Scenes need nothing.
 
-## Setup
+## Known limitations
 
-1. Add this repository's scraper source index in Stash under Settings > Metadata Providers > Available Scrapers, then install **VH - Gallery-DL - Twitter** and its dependency **py_common**. The container needs Python 3 with `tzdata` for the time zone conversion.
-2. **Scenes need nothing else.**
-3. **Images need a `py_common` config.** Stash does not give an image scraper the file path (only the image ID), so the scraper asks Stash's GraphQL API for it, using `py_common`. Edit `config.ini` in the `py_common` folder this scraper imports: with the Community source's default local path that is `scrapers/community/py_common/config.ini` under your Stash configuration directory (not `scrapers/py_common/`). `py_common` reads the file next to its own code, so it is the copy installed with the **py_common** package. Set only what this scraper depends on:
+- A media file with no metadata file, or an unreadable one, gives no update. An unreadable or non-JSON metadata file logs a warning.
+- Without time zone data for the fallback zone, the date is left out with a warning.
+- A scene with no files fails the scrape. So does an image scrape input with no ID.
+- An image whose GraphQL lookup fails, or for which Stash returns no files, gives no update.
 
-   ```ini
-   url = http://localhost:9999
-   api_key = <your Stash API key>
-   ```
+## Development
 
-   Generate the key under Settings > Security > Authentication. `py_common` creates this file, with `url = http://localhost:9999` and an empty `api_key`, the first time an image is scraped.
-
-   To confirm the path, set Stash's log level to Debug (Settings > System > Logging), scrape one image, then open Settings > Logs with the Debug filter. `py_common` logs one of:
-
-   ```
-   [py_common/graphql.py] First run, creating default config at <path>/config.ini
-   [py_common/graphql.py] Reading config from <path>/config.ini
-   ```
-
-   That `<path>` is the file to edit. If the key is missing or wrong, `py_common` logs an error naming `config.ini` and the scraper returns no update.
-
-## Tests
-
-From this directory: `python3 -B -m unittest -v`. The tests use synthetic sidecars and never contact Stash.
+- Tests: `python3 -B -m unittest -v` from this folder. They use synthetic metadata files and never contact Stash.
+- A missing `TZ` or an unknown time zone is logged at Debug level only. Each successful scrape logs one Info line naming the metadata file.
