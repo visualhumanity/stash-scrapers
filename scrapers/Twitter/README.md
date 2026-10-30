@@ -8,16 +8,15 @@ Scrapes a performer from a Twitter/X profile through the X API, by profile URL o
 
 Profile URLs can be on `twitter.com` or `x.com`.
 
+## Searching by name
+
+Scrape by name looks up the exact handle typed, with or without a leading `@` (`@example_user` or `example_user`). It is not a search: it gives one result or none, and a display name with spaces gives none. The result has only a name and URL; to fill the rest, scrape the performer again by its URL.
+
 ## Field notes
 
 - **name**: the account's display name, not its handle.
 - **urls** and **twitter**: `https://twitter.com/<handle>`, with the handle as the API spells it, even for an `x.com` URL.
-- **details**: the profile's bio.
 - **image**: the profile picture at 400x400.
-
-## Searching by name
-
-Scrape by name looks up the exact handle typed, with or without a leading `@` (`@example_user` or `example_user`). It is not a search: it gives one result or none, and a display name with spaces gives none. The result has only a name and URL; to fill the rest, scrape the performer again by its URL.
 
 ## Configuration
 
