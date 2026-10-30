@@ -2,7 +2,7 @@
 
 Fills a scene downloaded by [OF-Scraper](https://github.com/datawhores/OF-Scraper) from the per-account `user_data.db` that OF-Scraper keeps. It works from the scene edit tab ("Scrape with") and from the Identify task. The database is only ever opened read-only.
 
-Requires: [VH - Convert HTML to Markdown](../ConvertHtmlToMarkdown/), installed automatically as a requirement.
+Requires: [VH - Convert HTML to Markdown](../ConvertHtmlToMarkdown/), and Python time zone data where Stash runs scrapers, from the system or the [`tzdata`](https://pypi.org/project/tzdata/) package.
 
 ## Supports
 
@@ -56,7 +56,7 @@ OnlyFans posts have no titles, so the title is inferred from the description:
 
 ## Field notes
 
-- **title**: inferred from the description (see [Title inference](#title-inference)); not set when there is no usable text.
+- **title**: see [Title inference](#title-inference).
 - **date**: `created_at` of the post, message or story, converted from UTC to the container time zone (see [Configuration](#configuration)).
 - **urls**: `https://onlyfans.com/<post id>/<username>`, for posts only (timeline, archived, pinned, paid); none for messages and stories.
 - **details**: the full post text, converted from HTML to Markdown by [VH - Convert HTML to Markdown](../ConvertHtmlToMarkdown/). Relative links (`/name`) become `https://onlyfans.com/name`; plain text is left as is.
@@ -65,13 +65,14 @@ OnlyFans posts have no titles, so the title is inferred from the description:
 
 ## Configuration
 
-- Set `TZ` on the Stash container. Without it the scraper falls back to `America/Toronto`.
+- Set `TZ` on the Stash container. Without it the scraper falls back to a zone set in the script.
 
 ## Known limitations
 
 - Only the scene's first file is read.
 - A file outside the expected layout, or not found in any database, gives no update.
 - If VH - Convert HTML to Markdown is missing, descriptions stay as raw HTML and a warning is logged.
+- An unknown `TZ`, or no time zone data for the zone in use, fails the scrape with an error in the log.
 
 ## Development
 
