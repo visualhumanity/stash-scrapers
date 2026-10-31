@@ -8,6 +8,8 @@ Python script scrapers for [Stash](https://github.com/stashapp/stash), published
 
 The root [`README.md`](README.md) is the index of the scrapers in this repo: name and a short description. Each scraper's own `README.md` holds the detail (setup, fields, behaviour). Read those rather than expecting a list here. See `docs/adr/0001-root-readme-role.md`.
 
+Every scraper folder has a `README.md` following the shared structure in `docs/adr/0002-scraper-readme-structure.md`.
+
 Keep the README table current: a PR that adds, removes or renames a scraper, or changes what it does, updates the table in the same PR. The table has no version column; see the ADR.
 
 ## Directory structure
